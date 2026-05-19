@@ -71,6 +71,8 @@ if [[ "${1:-}" == "list" || "${1:-}" == "-l" ]]; then
     tmux list-sessions 2>/dev/null | grep "^claude-" || echo "  (none)"
     echo
     echo "── bridge files ($PAIRS_DIR) ──"
+    # bridge 파일명은 wrapper가 'bridge-' prefix로 통제 — non-alphanumeric 위험 없음.
+    # shellcheck disable=SC2010
     ls -la "$PAIRS_DIR/" 2>/dev/null | grep "bridge-" || echo "  (none)"
     exit 0
 fi

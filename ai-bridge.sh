@@ -199,7 +199,6 @@ norm_path() {
     fi
 }
 
-NEW_SESSION=0
 if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
     pane_cmd=$(tmux list-panes -t "$TMUX_SESSION" -F "#{pane_current_command}" 2>/dev/null | head -1)
     pane_cwd=$(tmux list-panes -t "$TMUX_SESSION" -F "#{pane_current_path}" 2>/dev/null | head -1)
@@ -218,7 +217,6 @@ else
     info "세션 생성 중... (cwd=$BRIDGE_WORKDIR)"
     tmux new-session -d -s "$TMUX_SESSION" -c "$BRIDGE_WORKDIR"
     tmux set-option -t "$TMUX_SESSION" history-limit "$TMUX_HISTORY_LIMIT" 2>/dev/null || true
-    NEW_SESSION=1
     if [[ -n "$SECONDARY_CMD" ]]; then
         tmux send-keys -t "$TMUX_SESSION" "$SECONDARY_CMD" Enter
         ok "tmux 세션 생성 + '$SECONDARY_CMD' 시작 명령 전송"
