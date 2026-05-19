@@ -80,10 +80,11 @@ done
 echo
 echo "── 2. --version 출력 ──"
 out=$(bash "$SCRIPT_DIR/ai-bridge.sh" --version 2>&1)
-if [[ "$out" == "ai-bridge 0.1.0" ]]; then
-    pass "--version returns 'ai-bridge 0.1.0'"
+expected="ai-bridge $(head -1 "$SCRIPT_DIR/VERSION" | tr -d '[:space:]')"
+if [[ "$out" == "$expected" ]]; then
+    pass "--version returns '$expected'"
 else
-    fail "--version expected 'ai-bridge 0.1.0', got: $out"
+    fail "--version expected '$expected', got: $out"
 fi
 
 echo
