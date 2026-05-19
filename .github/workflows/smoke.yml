@@ -20,7 +20,7 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install tmux (Linux runner — macOS preinstalled)
         if: matrix.os == 'ubuntu-latest'
@@ -66,7 +66,7 @@ jobs:
     name: macOS /bin/bash 3.2 compat
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: /bin/bash version (macOS default)
         run: /bin/bash --version | head -1
       - name: syntax check via macOS default bash (/bin/bash, not brew bash)
@@ -85,7 +85,7 @@ jobs:
     name: shellcheck (warning+)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Run shellcheck (severity=warning, strict — fail on warning or above)
         uses: ludeeus/action-shellcheck@master
         with:
@@ -99,7 +99,7 @@ jobs:
     name: markdown link check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: lycheeverse/lychee-action@v2
         with:
           args: --no-progress --max-concurrency 4 --accept 200,204,206,429 './**/*.md'
