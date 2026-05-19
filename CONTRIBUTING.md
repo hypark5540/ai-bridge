@@ -20,6 +20,24 @@ ai-bridge에 기여해주셔서 감사합니다. 이 문서는 PR을 보내기 �
    - `markdown link check` — README/CHANGELOG/docs 외부 link 깨짐 advisory
 6. **리뷰 대응** — 코멘트 반영 후 force-push 대신 추가 commit. 머지 직전 squash는 maintainer 재량.
 
+## PR 라벨 정책 (maintainer 작업)
+
+`.github/release.yml`은 라벨 기반으로 release notes를 자동 분류합니다. 머지 직전 maintainer가 PR에 다음 중 하나(또는 복수)를 부여:
+
+| 라벨 | release notes 섹션 |
+|---|---|
+| `breaking` | ⚠️ Breaking Changes |
+| `feature` / `feat` / `enhancement` | ✨ Features |
+| `fix` / `bug` / `bugfix` | 🐛 Fixes |
+| `security` | 🔒 Security |
+| `docs` / `documentation` | 📚 Documentation |
+| `test` / `tests` | 🧪 Tests |
+| `ci` / `tooling` / `chore` | 🤖 CI / Tooling |
+| (없거나 위 외) | 🧹 Other |
+| `skip-changelog` | (release notes 제외) |
+
+Conventional commits 메시지는 commit history용이고 GitHub generated release notes의 카테고리화에는 **PR 라벨**이 입력. 잊지 말고 부여할 것 — dependabot author는 release.yml에서 자동 제외됨.
+
 ## 커밋 메시지
 
 Conventional Commits를 권장합니다:
