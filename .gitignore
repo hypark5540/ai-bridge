@@ -1,0 +1,42 @@
+# Bridge file itself — never commit (contains conversation history that may include sensitive context)
+ai-bridge.md
+*-bridge.md
+
+# Personal wrapper instances — keep .example only, ignore the actual user-configured copies.
+# 사용자가 자유 이름(my-bridge.sh, work.local.sh, foo.sh.local 등)을 쓰는 케이스까지 차단하기 위해 패턴 다중화.
+claude-bridge.sh
+codex-bridge.sh
+*.local.sh
+*.sh.local
+.local/
+wrappers/
+
+# Personal bridge pair files (created at runtime, may contain conversation history)
+ai-bridge-pairs/
+
+# Capture / transcript artifacts (may contain secrets from tmux pane output)
+captures/
+transcripts/
+*.capture
+*.transcript
+
+# Logs
+*.log
+*.log.*
+
+# Local environment
+.env
+.env.*
+.env.local
+.env.*.local
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Temporary
+.tmp/

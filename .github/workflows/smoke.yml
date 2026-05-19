@@ -1,0 +1,49 @@
+name: smoke
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  syntax-and-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install tmux (Linux runner — macOS preinstalled)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get update && sudo apt-get install -y tmux
+
+      - name: bash -n syntax check
+        run: |
+          for f in ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
+            echo "→ bash -n $f"
+            bash -n "$f"
+          done
+
+      - name: Run offline smoke test suite
+        run: bash tests/smoke.sh
+
+      - name: Verify --version
+        run: |
+          out=$(bash ai-bridge.sh --version)
+          echo "$out"
+          [[ "$out" == "ai-bridge $(cat VERSION)" ]] || { echo "VERSION mismatch: '$out' vs file '$(cat VERSION)'"; exit 1; }
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run shellcheck
+        uses: ludeeus/action-shellcheck@master
+        with:
+          severity: warning
+          scandir: .
+          additional_files: ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh
+        continue-on-error: true  # 초기 release는 advisory — warn만 보고, fail은 안 함

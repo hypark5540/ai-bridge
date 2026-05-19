@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+set -euo pipefail
+
+# ── template guard ───────────────────────────────────────
+_self="${BASH_SOURCE[0]##*/}"
+_sub="${1:-}"
+if [[ "$_self" == *.example ]] && [[ "$_sub" != "list" && "$_sub" != "-l" && "$_sub" != "--version" && "$_sub" != "-V" ]]; then
+    echo "⚠️  '$_self' is a template — not meant to be run directly for real pair setup." >&2
+    echo "    Install:  cp $_self ${_self%.example} && chmod +x ${_self%.example}" >&2
+    echo "    Edit AI_PRIMARY_CMD / AI_SECONDARY_CMD inside the copy, then run ./${_self%.example}" >&2
+    echo "    (read-only ok: ./$_self list  /  ./$_self --version)" >&2
+    exit 2
+fi
+unset _self _sub
+
+# Example wrapper — codex를 주 실행 주체, claude를 mutex(검토자)로 사용.
+# claude-bridge.sh의 역방향. 각 실행마다 격리된 1:1 codex ↔ Claude pair를 새로 생성.
+# wrapper PID ($$)로 태깅하여 병렬 실행 시에도 독립 유지.
+#
+# 설치:
+#   cp codex-bridge.sh.example codex-bridge.sh
+#   chmod +x codex-bridge.sh
+#   # AI_PRIMARY_CMD / AI_SECONDARY_CMD / AI_OPEN_TERMINAL 값을 본인 환경에 맞춰 수정
+#
+# Usage:
+#   ./codex-bridge.sh                                  # 새 pair, tag = $$
+#   AI_PAIR_TAG=agents ./codex-bridge.sh               # 가독성 위해 명명 tag
+#   AI_BRIDGE_WORKDIR=~/your-project ./codex-bridge.sh # primary/mutex cwd 지정 (기본: $HOME)
+#   ./codex-bridge.sh list                             # 활성 pair 조회
+#
+# 정방향(claude 주 / codex mutex): claude-bridge.sh 참고.
+#
+# 수정 시 가이드: 본인 환경에 맞춰 export 값만 조정. 로직 추가는 core script (ai-bridge.sh)에 직접.
+# 실제 wrapper(codex-bridge.sh)는 .gitignore되어 있으니 본인 환경 값을 commit할 위험 없음.
+
+# ── core script 경로 (외부에서 override 가능) ───────────────
+# 공식 설치 방식: cp codex-bridge.sh.example codex-bridge.sh — 같은 디렉토리에 두는 것.
+# 다른 위치(예: ~/bin/)에 symlink로 두려면 AI_BRIDGE_HOME 환경변수로 ai-bridge.sh 디렉토리를 명시.
+if [[ -z "${AI_BRIDGE_HOME:-}" ]]; then
+    if command -v readlink >/dev/null 2>&1 && readlink -f / >/dev/null 2>&1; then
+        AI_BRIDGE_HOME="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd -P)"
+    else
+        # pure-bash readlink -f loop (POSIX-compatible, max 40 hops)
+        _src="${BASH_SOURCE[0]}"
+        _hops=0
+        while [[ -L "$_src" && $_hops -lt 40 ]]; do
+            _target="$(readlink "$_src" 2>/dev/null || true)"
+            [[ -z "$_target" ]] && break
+            if [[ "$_target" = /* ]]; then
+                _src="$_target"
+            else
+                _src="$(cd "$(dirname "$_src")" && pwd -P)/$_target"
+            fi
+            _hops=$((_hops + 1))
+        done
+        AI_BRIDGE_HOME="$(cd "$(dirname "$_src")" && pwd -P)"
+        unset _src _target _hops
+    fi
+fi
+
+# ── pairs 디렉토리 (외부 override 가능) ───────────────────
+PAIRS_DIR="${AI_BRIDGE_PAIRS_DIR:-$HOME/ai-bridge-pairs}"
+
+# ── list 모드: 양방향 pair 전체 조회 ──────────────────────
+if [[ "${1:-}" == "list" || "${1:-}" == "-l" ]]; then
+    echo "── claude-primary pairs (claude → codex) ──"
+    tmux list-sessions 2>/dev/null | grep "^codex-" || echo "  (none)"
+    echo
+    echo "── codex-primary pairs (codex → claude) ──"
+    tmux list-sessions 2>/dev/null | grep "^claude-" || echo "  (none)"
+    echo
+    echo "── bridge files ($PAIRS_DIR) ──"
+    ls -la "$PAIRS_DIR/" 2>/dev/null | grep "bridge-" || echo "  (none)"
+    exit 0
+fi
+
+# ── --version: core에 즉시 위임 (pair setup side-effect 차단) ──
+if [[ "${1:-}" == "--version" || "${1:-}" == "-V" ]]; then
+    if [[ ! -x "$AI_BRIDGE_HOME/ai-bridge.sh" ]]; then
+        echo "ERROR: core script not found: $AI_BRIDGE_HOME/ai-bridge.sh" >&2
+        exit 1
+    fi
+    exec "$AI_BRIDGE_HOME/ai-bridge.sh" --version
+fi
+
+# ── pair tag 결정: 사용자 지정 > wrapper PID ───────────────
+PAIR_ID="${AI_PAIR_TAG:-$$}"
+
+if ! [[ "$PAIR_ID" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+    echo "ERROR: AI_PAIR_TAG must match ^[A-Za-z0-9_.-]+$ (got: '$PAIR_ID')" >&2
+    exit 1
+fi
+
+# ── pair별 자원 격리 ────────────────────────────────────────
+mkdir -p "$PAIRS_DIR"
+
+export AI_BRIDGE_FILE="$PAIRS_DIR/bridge-codex-${PAIR_ID}.md"
+export AI_TMUX_SESSION="claude-${PAIR_ID}"
+
+# ⚠️ 다음 4개 값은 trusted local config — 본인 환경의 CLI 명령으로 교체하세요.
+export AI_PRIMARY_CMD="codex -a on-request -s workspace-write"  # 현재 터미널에서 exec할 주 AI CLI
+export AI_SECONDARY_CMD="claude"             # tmux 안에서 실행할 보조 AI CLI
+export AI_OPEN_TERMINAL=0                     # 1 = macOS Terminal.app 새 창 자동 열기 (OPT-IN)
+export AI_BRIDGE_WORKDIR="${AI_BRIDGE_WORKDIR:-$HOME}"   # primary/mutex 모두 시작 cwd
+
+cd "$AI_BRIDGE_WORKDIR" || { echo "ERROR: cd $AI_BRIDGE_WORKDIR 실패" >&2; exit 1; }
+
+if [[ ! -x "$AI_BRIDGE_HOME/ai-bridge.sh" ]]; then
+    echo "ERROR: core script not found or not executable: $AI_BRIDGE_HOME/ai-bridge.sh" >&2
+    echo "       AI_BRIDGE_HOME 환경변수로 ai-bridge.sh 디렉토리를 지정하세요." >&2
+    exit 1
+fi
+
+echo "[codex-bridge] pair id  : ${PAIR_ID}"
+echo "[codex-bridge]   primary: $AI_PRIMARY_CMD (현재 터미널)"
+echo "[codex-bridge]   mutex  : $AI_SECONDARY_CMD (tmux: $AI_TMUX_SESSION)"
+echo "[codex-bridge]   bridge : $AI_BRIDGE_FILE"
+echo "[codex-bridge]   workdir: $AI_BRIDGE_WORKDIR"
+
+exec "$AI_BRIDGE_HOME/ai-bridge.sh"
