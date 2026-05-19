@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 
 ## [Unreleased]
 
+### Fixed
+- Linux GNU stat 호환성 — `stat -f "%Lp"`가 Linux에서 filesystem 정보로 해석되는 platform 분기 차이로 CI Ubuntu runner에서 mode display가 garbage 출력되던 회귀 수정. `get_file_mode()` helper로 GNU(`stat -c %a`) 우선 + BSD(`stat -f %Lp`) fallback + 결과 `^[0-7]+$` validation. 실제 `chmod 0600` 강제는 정상 동작했으나 display + smoke #8/#8b가 깨졌음. (ai-bridge.sh, tests/smoke.sh)
+
 ## [0.1.0] — 2026-05-19
 
 ### Added

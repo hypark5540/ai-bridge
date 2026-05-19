@@ -112,10 +112,22 @@ info()   { echo "    ${DIM}$1${RESET}"; }
 # ── 1. 정책 파일 위치 (tmux 의존 없음 — DRY_RUN/CI에서도 작동) ──
 header "1. 정책 파일"
 
+# Mode 조회 — GNU stat(`stat -c %a`) 우선, BSD/macOS(`stat -f %Lp`) fallback.
+# 양쪽 모두 mode 숫자 형식(`^[0-7]+$`)인지 검증. 다른 platform의 stat이 다른 옵션으로
+# silent하게 다른 출력(예: Linux GNU stat의 -f는 filesystem 정보)을 내는 회귀 차단.
+get_file_mode() {
+    local f="$1" m
+    m=$(stat -c "%a" "$f" 2>/dev/null) || true
+    if [[ "$m" =~ ^[0-7]+$ ]]; then echo "$m"; return 0; fi
+    m=$(stat -f "%Lp" "$f" 2>/dev/null) || true
+    if [[ "$m" =~ ^[0-7]+$ ]]; then echo "$m"; return 0; fi
+    echo "?"
+}
+
 if [[ -f "$BRIDGE_FILE" ]]; then
     lines=$(awk 'END{print NR}' "$BRIDGE_FILE")
     ok "bridge: $BRIDGE_FILE (${lines}줄)"
-    perm=$(stat -f "%Lp" "$BRIDGE_FILE" 2>/dev/null || stat -c "%a" "$BRIDGE_FILE" 2>/dev/null || echo "?")
+    perm=$(get_file_mode "$BRIDGE_FILE")
     if [[ "$perm" == "600" ]]; then
         info "권한 chmod 0600 ✓"
     else

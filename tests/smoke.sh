@@ -16,6 +16,17 @@
 #   9. AI_BRIDGE_HOME resolution (wrapper.example)
 
 set -uo pipefail  # 미정의 변수 + pipeline 첫 실패 catch (-e는 명시적 fail() 카운트와 충돌하므로 제외)
+
+# GNU stat (Linux) 우선, BSD stat (macOS) fallback. 양쪽 출력이 mode 숫자인지 검증.
+# stat -f는 GNU에선 filesystem info를 뜻해서 silent fail이 아니라 garbage 출력 — 명시 validation.
+get_file_mode() {
+    local f="$1" m
+    m=$(stat -c "%a" "$f" 2>/dev/null) || true
+    if [[ "$m" =~ ^[0-7]+$ ]]; then echo "$m"; return 0; fi
+    m=$(stat -f "%Lp" "$f" 2>/dev/null) || true
+    if [[ "$m" =~ ^[0-7]+$ ]]; then echo "$m"; return 0; fi
+    echo "?"
+}
 PASS=0
 FAIL=0
 FAILED_TESTS=()
@@ -148,7 +159,7 @@ out=$(run_core "bridge-create" AI_BRIDGE_FILE="$BRIDGE_NEW" || true)
 if [[ ! -f "$BRIDGE_NEW" ]]; then
     fail "bridge 파일 생성 안 됨. Output: $out"
 else
-    perm=$(stat -f "%Lp" "$BRIDGE_NEW" 2>/dev/null || stat -c "%a" "$BRIDGE_NEW" 2>/dev/null)
+    perm=$(get_file_mode "$BRIDGE_NEW")
     if [[ "$perm" == "600" ]]; then
         pass "신규 bridge 파일 mode=0600 (DRY_RUN 모드)"
     else
@@ -162,7 +173,7 @@ BRIDGE_EXISTING="$TMPDIR_TEST/existing-bridge-$$.md"
 echo "pre-existing content" > "$BRIDGE_EXISTING"
 chmod 0644 "$BRIDGE_EXISTING"
 out=$(run_core "bridge-chmod-fix" AI_BRIDGE_FILE="$BRIDGE_EXISTING" || true)
-perm=$(stat -f "%Lp" "$BRIDGE_EXISTING" 2>/dev/null || stat -c "%a" "$BRIDGE_EXISTING" 2>/dev/null)
+perm=$(get_file_mode "$BRIDGE_EXISTING")
 if [[ "$perm" == "600" ]]; then
     pass "기존 0644 bridge가 0600으로 자동 보정됨"
 else
