@@ -14,6 +14,9 @@ wrappers/
 # Personal bridge pair files (created at runtime, may contain conversation history)
 ai-bridge-pairs/
 
+# Accidental nested clone when someone runs `git clone ... ai-bridge` inside the repo root
+/ai-bridge/
+
 # Capture / transcript artifacts (may contain secrets from tmux pane output)
 captures/
 transcripts/

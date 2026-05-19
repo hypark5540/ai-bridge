@@ -5,7 +5,7 @@
 # 실행: bash tests/smoke.sh
 #
 # 검증 항목 (실제 tmux 세션 생성 / AI CLI 실행은 안 함):
-#   1. bash -n syntax check 3개 파일
+#   1. bash -n syntax check 5개 파일
 #   2. --version 출력
 #   3. AI_OPEN_TERMINAL 0|1 validation
 #   4. AI_TMUX_HISTORY_LIMIT integer validation
@@ -14,6 +14,7 @@
 #   7. AI_PRIMARY_CMD newline 거부
 #   8. bridge 파일 0600 신규 생성
 #   9. AI_BRIDGE_HOME resolution (wrapper.example)
+#   10. install.sh wrapper/profile behavior in temp fixtures
 
 set -uo pipefail  # 미정의 변수 + pipeline 첫 실패 catch (-e는 명시적 fail() 카운트와 충돌하므로 제외)
 
@@ -69,7 +70,7 @@ run_core() {
 }
 
 echo "── 1. syntax check ──"
-for f in ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
+for f in ai-bridge.sh install.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
     if bash -n "$SCRIPT_DIR/$f" 2>/dev/null; then
         pass "bash -n $f"
     else
@@ -298,6 +299,121 @@ else
     fail "read-only dir에서 silent fail. Output: $out"
 fi
 chmod 0755 "$RO_DIR"  # cleanup용 권한 복구
+
+echo
+echo "── 14. install.sh fixture tests ──"
+make_install_fixture() {
+    local fixture="$1"
+    mkdir -p "$fixture"
+    cp "$SCRIPT_DIR/install.sh" \
+       "$SCRIPT_DIR/ai-bridge.sh" \
+       "$SCRIPT_DIR/claude-bridge.sh.example" \
+       "$SCRIPT_DIR/codex-bridge.sh.example" \
+       "$fixture/"
+}
+
+INSTALL_FIXTURE="$TMPDIR_TEST/install-fixture"
+INSTALL_HOME="$TMPDIR_TEST/install-home"
+make_install_fixture "$INSTALL_FIXTURE"
+mkdir -p "$INSTALL_HOME"
+out=$(HOME="$INSTALL_HOME" SHELL="/bin/zsh" \
+      bash "$INSTALL_FIXTURE/install.sh" --no-install 2>&1 || true)
+if [[ -x "$INSTALL_FIXTURE/claude-bridge.sh" && -x "$INSTALL_FIXTURE/codex-bridge.sh" ]]; then
+    pass "install.sh creates executable wrapper copies"
+else
+    fail "install.sh did not create executable wrapper copies. Output: $out"
+fi
+marker_count=$(grep -cF "# >>> ai-bridge PATH >>>" "$INSTALL_HOME/.zshrc" 2>/dev/null || true)
+if [[ "$marker_count" == "1" ]]; then
+    pass "install.sh writes one PATH profile block"
+else
+    fail "install.sh PATH profile block count=$marker_count (expected 1). Output: $out"
+fi
+
+INSTALL_FIXTURE_REAL="$(cd "$INSTALL_FIXTURE" && pwd -P)"
+out=$(cd "$INSTALL_FIXTURE" && env -i HOME="$INSTALL_HOME" SHELL="/bin/zsh" PATH="$PATH" TERM="${TERM:-dumb}" \
+      AI_BRIDGE_DRY_RUN=1 AI_OPEN_TERMINAL=0 bash ./claude-bridge.sh 2>&1 || true)
+if echo "$out" | grep -qF "Review\\ Flow" && echo "$out" | grep -qF "sequential\\ coordinator" && echo "$out" | grep -qF "independent\\ parallel\\ reviews" && echo "$out" | grep -qF "not\\ one-shot" && echo "$out" | grep -qF "Confidence\\ \\>=\\ 90" && echo "$out" | grep -qF "round\\ 5" && echo "$out" | grep -qF "workdir: $INSTALL_FIXTURE_REAL"; then
+    pass "installed claude wrapper injects startup guide and defaults workdir to launch cwd"
+else
+    fail "installed claude wrapper did not expose startup guide/workdir. Output: $out"
+fi
+if echo "$out" | grep -qF "codex -m gpt-5.5 -c model_reasoning_effort=xhigh"; then
+    pass "installed claude wrapper starts secondary Codex with gpt-5.5 xhigh"
+else
+    fail "installed claude wrapper did not set secondary Codex gpt-5.5 xhigh. Output: $out"
+fi
+
+out=$(cd "$INSTALL_FIXTURE" && env -i HOME="$INSTALL_HOME" SHELL="/bin/zsh" PATH="$PATH" TERM="${TERM:-dumb}" \
+      AI_BRIDGE_DRY_RUN=1 AI_OPEN_TERMINAL=0 bash ./codex-bridge.sh 2>&1 || true)
+if echo "$out" | grep -qF "Review\\ Flow" && echo "$out" | grep -qF "sequential\\ coordinator" && echo "$out" | grep -qF "independent\\ parallel\\ reviews" && echo "$out" | grep -qF "not\\ one-shot" && echo "$out" | grep -qF "Confidence\\ \\>=\\ 90" && echo "$out" | grep -qF "round\\ 5" && echo "$out" | grep -qF "workdir: $INSTALL_FIXTURE_REAL"; then
+    pass "installed codex wrapper injects startup guide and defaults workdir to launch cwd"
+else
+    fail "installed codex wrapper did not expose startup guide/workdir. Output: $out"
+fi
+if echo "$out" | grep -qF "codex -m gpt-5.5 -c model_reasoning_effort=xhigh"; then
+    pass "installed codex wrapper starts primary Codex with gpt-5.5 xhigh"
+else
+    fail "installed codex wrapper did not set primary Codex gpt-5.5 xhigh. Output: $out"
+fi
+unset INSTALL_FIXTURE_REAL
+
+printf '%s\n' '# local claude wrapper' > "$INSTALL_FIXTURE/claude-bridge.sh"
+chmod +x "$INSTALL_FIXTURE/claude-bridge.sh"
+out=$(HOME="$INSTALL_HOME" SHELL="/bin/zsh" \
+      bash "$INSTALL_FIXTURE/install.sh" --no-install 2>&1 || true)
+if grep -qF "# local claude wrapper" "$INSTALL_FIXTURE/claude-bridge.sh"; then
+    pass "install.sh preserves existing wrappers without --force"
+else
+    fail "install.sh overwrote existing wrapper without --force. Output: $out"
+fi
+marker_count=$(grep -cF "# >>> ai-bridge PATH >>>" "$INSTALL_HOME/.zshrc" 2>/dev/null || true)
+if [[ "$marker_count" == "1" ]]; then
+    pass "install.sh PATH profile block is idempotent"
+else
+    fail "install.sh PATH profile block count after rerun=$marker_count (expected 1). Output: $out"
+fi
+
+out=$(HOME="$INSTALL_HOME" SHELL="/bin/zsh" \
+      bash "$INSTALL_FIXTURE/install.sh" --force --no-install --no-path-edit 2>&1 || true)
+if cmp -s "$INSTALL_FIXTURE/claude-bridge.sh.example" "$INSTALL_FIXTURE/claude-bridge.sh"; then
+    pass "install.sh --force refreshes wrapper from template"
+else
+    fail "install.sh --force did not refresh wrapper from template. Output: $out"
+fi
+
+BASH_PROFILE_FIXTURE="$TMPDIR_TEST/install-bash-profile-fixture"
+BASH_PROFILE_HOME="$TMPDIR_TEST/install-bash-profile-home"
+make_install_fixture "$BASH_PROFILE_FIXTURE"
+mkdir -p "$BASH_PROFILE_HOME"
+out=$(HOME="$BASH_PROFILE_HOME" SHELL="/bin/bash" \
+      bash "$BASH_PROFILE_FIXTURE/install.sh" --no-install 2>&1 || true)
+if [[ "$(uname -s 2>/dev/null || echo unknown)" == "Darwin" ]]; then
+    expected_profile="$BASH_PROFILE_HOME/.bash_profile"
+    unexpected_profile="$BASH_PROFILE_HOME/.bashrc"
+else
+    expected_profile="$BASH_PROFILE_HOME/.bashrc"
+    unexpected_profile="$BASH_PROFILE_HOME/.bash_profile"
+fi
+marker_count=$(grep -cF "# >>> ai-bridge PATH >>>" "$expected_profile" 2>/dev/null || true)
+if [[ "$marker_count" == "1" && ! -e "$unexpected_profile" ]]; then
+    pass "install.sh chooses bash profile for this OS"
+else
+    fail "install.sh bash profile selection wrong. expected=$expected_profile marker_count=$marker_count unexpected=$unexpected_profile exists=$([[ -e "$unexpected_profile" ]] && echo yes || echo no). Output: $out"
+fi
+unset expected_profile unexpected_profile
+
+NO_PATH_FIXTURE="$TMPDIR_TEST/install-no-path-fixture"
+NO_PATH_HOME="$TMPDIR_TEST/install-no-path-home"
+make_install_fixture "$NO_PATH_FIXTURE"
+mkdir -p "$NO_PATH_HOME"
+out=$(HOME="$NO_PATH_HOME" SHELL="/bin/zsh" AI_BRIDGE_INSTALL_NO_DEPS=1 AI_BRIDGE_NO_PATH_EDIT=1 \
+      bash "$NO_PATH_FIXTURE/install.sh" 2>&1 || true)
+if [[ ! -e "$NO_PATH_HOME/.zshrc" ]]; then
+    pass "AI_BRIDGE_NO_PATH_EDIT=1 avoids creating shell profile"
+else
+    fail "AI_BRIDGE_NO_PATH_EDIT=1 created shell profile unexpectedly. Output: $out"
+fi
 
 echo
 echo "════════════════════════════════════════"

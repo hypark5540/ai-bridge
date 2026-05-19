@@ -36,7 +36,7 @@
 
 ### 코드 품질
 - [ ] `set -euo pipefail` 유지 (smoke.sh는 `set -uo pipefail`)
-- [ ] `bash -n` × 4 파일 통과
+- [ ] `bash -n` × 5 파일 통과
 - [ ] shellcheck (가능 시) warning 미증가
 - [ ] 들여쓰기 4-space + 함수 소문자
 

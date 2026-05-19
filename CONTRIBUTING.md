@@ -9,7 +9,7 @@ ai-bridge에 기여해주셔서 감사합니다. 이 문서는 PR을 보내기 �
 3. **로컬 검증**:
    ```bash
    bash tests/smoke.sh        # 모든 케이스 pass 확인
-   bash -n ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh
+   bash -n ai-bridge.sh install.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh
    shellcheck *.sh tests/*.sh # 있다면
    ```
 4. **PR 생성** — `.github/PULL_REQUEST_TEMPLATE.md` 양식을 채워주세요.

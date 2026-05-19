@@ -34,7 +34,7 @@ jobs:
 
       - name: bash -n syntax check
         run: |
-          for f in ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
+          for f in ai-bridge.sh install.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
             echo "→ bash -n $f"
             bash -n "$f"
           done
@@ -71,7 +71,7 @@ jobs:
         run: /bin/bash --version | head -1
       - name: syntax check via macOS default bash (/bin/bash, not brew bash)
         run: |
-          for f in ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
+          for f in ai-bridge.sh install.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
             echo "→ /bin/bash -n $f"
             /bin/bash -n "$f"
           done
@@ -91,7 +91,7 @@ jobs:
         with:
           severity: warning
           scandir: .
-          additional_files: ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh
+          additional_files: ai-bridge.sh install.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh
           # NOTE: continue-on-error 제거 — warning 발생 시 CI fail. v0.1.x에서 strict 도입.
 
   links:

@@ -34,10 +34,8 @@ Claude Code와 Codex CLI 같은 두 개 이상의 터미널 기반 AI를 단일 
 > git clone git@github.com:hypark5540/ai-bridge.git
 > cd ai-bridge
 >
-> # Pick a direction wrapper (claude-primary OR codex-primary) and install:
-> cp claude-bridge.sh.example claude-bridge.sh && chmod +x claude-bridge.sh
-> cp codex-bridge.sh.example  codex-bridge.sh  && chmod +x codex-bridge.sh
-> # Edit AI_PRIMARY_CMD / AI_SECONDARY_CMD inside each copy to match your local CLIs.
+> # Install local wrappers and check tmux / claude / codex:
+> ./install.sh
 >
 > # Daily entry point — invoke ONE of these:
 > ./claude-bridge.sh    # Claude is primary, Codex is mutex/reviewer in tmux pane
@@ -53,12 +51,10 @@ Claude Code와 Codex CLI 같은 두 개 이상의 터미널 기반 AI를 단일 
 git clone git@github.com:hypark5540/ai-bridge.git
 cd ai-bridge   # 또는 ~/ai-bridge, ~/code/ai-bridge, /opt/ai-bridge — 어디든 OK
 
-# 2. wrapper template 복사 + 본인 환경 값으로 수정
-cp claude-bridge.sh.example claude-bridge.sh
-cp codex-bridge.sh.example  codex-bridge.sh
-chmod +x ai-bridge.sh claude-bridge.sh codex-bridge.sh
+# 2. 초기 설치 — wrapper 복사, chmod, PATH 보정, tmux/claude/codex 확인
+./install.sh
 # 실제 wrapper(claude-bridge.sh / codex-bridge.sh)는 .gitignore되어 있어 개인 설정 commit 위험 없음.
-# wrapper 안의 AI_PRIMARY_CMD / AI_SECONDARY_CMD / AI_OPEN_TERMINAL을 본인이 쓰는 CLI 이름으로 수정.
+# 이미 wrapper를 수정해 둔 경우 install.sh는 기본적으로 덮어쓰지 않음. 새 template으로 갱신하려면 ./install.sh --force
 
 # 3. (옵션) bridge 파일 경로 지정 — 기본 $HOME/ai-bridge.md (core fallback)
 #    wrapper로 실행하면 자동으로 $HOME/ai-bridge-pairs/bridge-{direction}-{PID}.md 사용
@@ -77,15 +73,36 @@ export AI_BRIDGE_FILE=~/ai-bridge.md
 >
 > **symlink로 wrapper 노출 시**: 예를 들어 `~/.local/bin/claude-bridge -> /path/to/ai-bridge/claude-bridge.sh`처럼 symlink를 두면 wrapper가 readlink로 추적해 `AI_BRIDGE_HOME`을 정확히 resolve합니다 (macOS BSD readlink 미지원 환경도 pure-bash fallback). 명시적으로 위치를 강제하려면 `export AI_BRIDGE_HOME=/path/to/ai-bridge`.
 
+### 설치 스크립트
+
+`./install.sh`는 처음 쓰는 사람이 수동으로 복사/권한/PATH를 맞추지 않아도 되도록 다음 작업을 한다.
+
+- `claude-bridge.sh.example` / `codex-bridge.sh.example`을 실제 wrapper로 복사하고 실행 권한을 부여한다.
+- `$HOME/.local/bin`, `/opt/homebrew/bin`, `/usr/local/bin`을 현재 shell profile PATH에 idempotent하게 추가한다.
+- `tmux`, `claude`, `codex` 존재 여부를 확인하고, 사용자가 승인하면 누락된 도구 설치를 시도한다.
+- 기존 wrapper는 보존한다. template 기본값으로 다시 맞추려면 `./install.sh --force`를 사용한다.
+- 설치된 wrapper는 첫 실행부터 ai-bridge Review Flow 지침을 Claude/Codex 시작 프롬프트에 넣는다. 별도 글로벌 `CLAUDE.md` / `AGENTS.md` 설정 없이도 review 요청을 one-shot이 아닌 pingpong round로 처리하고, bridge 파일, 민감정보 금지, Confidence/Conclusion 규칙을 먼저 보게 된다.
+- Claude Code 설치 경로를 선택하면 Anthropic 공식 installer(`curl -fsSL https://claude.ai/install.sh | bash`)를 실행한다. 기본 대화형 모드에서는 실행 전 확인 프롬프트를 거치지만, `--yes` / `AI_BRIDGE_INSTALL_YES=1`은 이 확인도 자동 승인한다. 원격 installer 실행이라는 점은 직접 확인해야 한다.
+
+자주 쓰는 모드:
+
+```bash
+./install.sh              # 대화형 설치
+./install.sh --yes        # 가능한 설치를 묻지 않고 진행 (원격 installer 확인도 자동 승인)
+./install.sh --no-install # 누락 의존성 설치만 건너뜀. wrapper/PATH 설정은 수행
+./install.sh --no-path-edit # shell profile PATH 수정 없이 wrapper만 준비
+./install.sh --force      # local wrapper를 template에서 다시 생성
+```
+
 ### Codex CLI 승인 모드
 
 `codex-bridge.sh.example`의 기본값은 다음처럼 설정되어 있다.
 
 ```bash
-export AI_PRIMARY_CMD="codex -a on-request -s workspace-write"
+export AI_PRIMARY_CMD="codex -m gpt-5.5 -c model_reasoning_effort=xhigh -a on-request -s workspace-write <ai-bridge startup prompt>"
 ```
 
-이 설정은 작업공간 안의 일반적인 shell/file 작업은 매번 묻지 않게 줄이면서, sandbox 밖 접근이나 escalation이 필요한 경우에는 Codex가 사용자 승인을 요청하게 하는 균형점이다.
+`-m gpt-5.5 -c model_reasoning_effort=xhigh` 설정은 Codex를 시작부터 GPT-5.5 + xhigh reasoning으로 고정한다. `-a on-request -s workspace-write` 설정은 작업공간 안의 일반적인 shell/file 작업은 매번 묻지 않게 줄이면서, sandbox 밖 접근이나 escalation이 필요한 경우에는 Codex가 사용자 승인을 요청하게 하는 균형점이다. 뒤의 startup prompt는 첫 turn부터 bridge review 규칙을 보이게 하는 운영 지침이다.
 
 필요하면 개인 wrapper(`codex-bridge.sh`)에서 재량껏 조절할 수 있다.
 
@@ -122,22 +139,24 @@ export AI_PRIMARY_CMD="codex -a on-request -s workspace-write"
 | `AI_BRIDGE_FILE` | `$HOME/ai-bridge.md` (core) / `$PAIRS_DIR/bridge-<dir>-<PID>.md` (wrapper) | 메시지박스 파일. 신규시 0600으로 생성, 기존 권한도 자동 보정 | core, wrapper |
 | `AI_BRIDGE_HOME` | wrapper와 같은 dir (readlink로 dynamic resolve) | core script (`ai-bridge.sh`) 위치. symlink/alias 사용자가 override 가능 | wrapper |
 | `AI_BRIDGE_PAIRS_DIR` | `$HOME/ai-bridge-pairs` | per-pair bridge 파일들이 모이는 디렉토리. XDG state dir 등으로 이전 가능 | wrapper |
-| `AI_BRIDGE_WORKDIR` | `$HOME` | tmux 새 세션 default-path + primary AI exec cwd | wrapper, core |
+| `AI_BRIDGE_WORKDIR` | wrapper 실행 시점의 `$PWD` (wrapper) / `$HOME` (core fallback) | tmux 새 세션 default-path + primary AI exec cwd. 기본값이 실행한 프로젝트라 repo별 README/CONTRIBUTING/AGENTS/CLAUDE 지침을 첫 실행부터 읽기 쉽다. | wrapper, core |
 | `AI_PAIR_TAG` | `$$` (wrapper PID) | pair tag — 가독성 위해 명명 가능. regex `^[A-Za-z0-9_.-]+$` | wrapper |
 | `AI_TMUX_SESSION` | `codex-<PAIR_ID>` / `claude-<PAIR_ID>` | tmux 세션 이름. regex `^[A-Za-z0-9_.-]+$` (콜론 제외 — tmux target 오해석 차단) | core |
 | `AI_PRIMARY_CMD` | (wrapper에서 설정) | 현재 터미널에서 exec할 주 AI CLI. **trusted local config only** | core |
 | `AI_SECONDARY_CMD` | (wrapper에서 설정) | tmux 안에서 실행할 보조 AI CLI. **trusted local config only** | core |
-| `AI_OPEN_TERMINAL` | `0` | `1` = macOS Terminal.app 새 창 자동 열기 (OPT-IN, macOS only) | core |
+| `Codex model defaults` | `gpt-5.5` + `model_reasoning_effort=xhigh` | `codex-bridge.sh`의 주 Codex와 `claude-bridge.sh`의 보조 Codex 기본 모델/추론강도 | wrapper |
+| `AI_OPEN_TERMINAL` | `1` (wrapper) / `0` (core fallback) | `1` = macOS Terminal.app 새 창 자동 열기. 필요하면 `AI_OPEN_TERMINAL=0 ./codex-bridge.sh`처럼 끌 수 있음 | wrapper, core |
 | `AI_TMUX_HISTORY_LIMIT` | `10000` | tmux scrollback 라인 한도 (>= 100) | core |
 | `AI_PRIMARY_MEMORY` | (unset) | 주 AI 글로벌 지침 파일 경로 (옵션, 정보 표시용) | core |
 | `AI_SECONDARY_MEMORY` | (unset) | 보조 AI 글로벌 지침 파일 경로 (옵션) | core |
 | `AI_BRIDGE_DRY_RUN` | `0` | `1` = bridge 파일 검증/생성까지만, tmux 세션 생성 안 함. smoke test/CI 용도 | core |
+| `AI_BRIDGE_BOOTSTRAP_PROMPT` | built-in one-line guide | wrapper 기본 CLI 명령에 주입되는 첫 실행 지침. 개인 wrapper에서 재정의 가능하며, `AI_PRIMARY_CMD`/`AI_SECONDARY_CMD`를 직접 override하면 호출자가 동등한 지침을 넣어야 한다. | wrapper |
 
 > **`AI_PRIMARY_CMD` / `AI_SECONDARY_CMD`는 trusted local config로만 다룬다.** AI 출력, bridge 내용, `tmux capture-pane` 결과를 절대 이 값으로 만들지 말 것. shell injection 위험. core가 control/newline 문자는 거부하지만 그 외 escape는 호출자 책임.
 
-## macOS Full Experience (OPT-IN)
+## macOS Full Experience
 
-macOS 사용자는 환경변수 몇 개만 설정하면 한 번 실행으로 멀티 창 셋업이 완성된다. **모든 동작은 OPT-IN — env 미설정 시 기본 single-window 동작 유지.**
+macOS에서 `./claude-bridge.sh` / `./codex-bridge.sh` wrapper를 쓰면 기본적으로 새 Terminal 창을 열어 보조 AI tmux 세션에 attach한다. 끄려면 실행 시 `AI_OPEN_TERMINAL=0`을 지정한다. core script(`./ai-bridge.sh`)를 직접 실행할 때는 기존처럼 env 미설정 시 single-window 동작이다.
 
 ```bash
 export AI_BRIDGE_FILE=~/ai-bridge.md
@@ -173,7 +192,7 @@ export AI_PRIMARY_CMD="<your-primary-ai-cli>"        # trusted local config only
 - **공유 메시지박스**: 두 에이전트는 같은 파일에 append-only 방식으로 메시지를 남긴다.
 - **명시적 컨텍스트**: 매 메시지는 Topic, Context refs, 본문, 요청을 포함한다.
 - **실행과 검토 분리**: 토론 중에는 텍스트만 주고받고, 합의 이후에만 코드 변경/테스트를 실행한다.
-- **사용자 최종 결정**: 3회 이상 같은 토픽이 반복되거나 결론이 갈리면 사용자가 결정한다.
+- **사용자 최종 결정**: 5회 pingpong 안에 양쪽 Confidence 90 이상 + 결론 충족에 도달하지 못하면 사용자가 결정한다.
 - **비밀정보 금지**: 토큰, 비밀번호, 개인식별정보, 실제 민감 payload는 bridge에 쓰지 않는다.
 - **좁은 변경**: 합의된 파일/범위 밖은 건드리지 않는다.
 - **빠른 합의 ≠ 정답**: 두 AI가 1~2라운드에 의견 일치를 봐도 같은 잘못된 가정 위에서 수렴했을 수 있다. 합의 후에도 사용자가 핵심 가정을 검증한다.
@@ -216,10 +235,13 @@ chmod 0600 ~/ai-bridge.md
 
 ### 3. 각 에이전트 지침에 트리거 추가
 
-각 AI CLI의 글로벌 지침 파일(예: `AGENTS.md`, `CLAUDE.md`)에 다음 동작을 둔다.
+설치된 direction wrapper는 기본적으로 아래 동작을 Claude/Codex 시작 프롬프트에 주입한다. 더 강하게 고정하고 싶으면 각 AI CLI의 글로벌 지침 파일(예: `AGENTS.md`, `CLAUDE.md`)에도 같은 동작을 둔다.
 
-- 사용자가 "다른 AI에게 리뷰 요청" 의미의 트리거를 입력하면 → 직전 작업 요약을 bridge 파일 끝에 append.
-- 사용자가 "bridge 확인" 트리거를 입력하면 → 마지막 상대방 항목을 읽고 요약.
+- 사용자가 "다른 AI에게 리뷰 요청" 의미의 트리거를 입력하면 → 주 AI가 먼저 자기 결론/findings를 만들고 bridge 파일 끝에 append한 뒤 pingpong round 1로 상대 리뷰를 요청한다.
+- 사용자가 "bridge 확인" 트리거를 입력하면 → 마지막 상대방 항목을 읽고, 기존 findings와 상대 findings를 reconcile한 뒤 다음 round를 열지 종료조건을 충족했는지 명시한다.
+- 기본 리뷰는 one-shot이 아니다. 상대 리뷰가 도착하면 요청자 쪽으로 돌아와 합의/반박/재요청이 한 번 더 일어나야 한다.
+- 기본 리뷰는 병렬 독립 리뷰도 아니다. 주 AI가 sequential coordinator이며, 상대 결과를 회수해 합치기 전에는 사용자에게 최종 결론을 따로 내지 않는다.
+- 종료조건은 Claude와 Codex가 각각 Confidence 90 이상이고 Conclusion이 충족/일치하는 경우다. 아니면 최대 round 5까지 pingpong하고, 그 뒤에는 `USER DECISION NEEDED`로 사용자 결정을 요청한다.
 
 트리거 워딩은 자유롭게 정한다. 예시:
 - `"방금내용 [상대 AI]한테 전달 및 리뷰 요청"`
@@ -231,7 +253,7 @@ chmod 0600 ~/ai-bridge.md
 - bridge 파일 권한: core script가 신규 파일을 자동으로 `0600`으로 생성한다. 기존 파일이 다른 권한이면 경고 + 자동 chmod 시도. 같은 머신의 다른 사용자/프로세스가 평문으로 읽을 수 있다는 점을 기본 가정으로 둔다.
 - bridge 파일 위치는 git 저장소 밖에 두거나 반드시 `.gitignore`에 포함한다. commit 전 `grep`으로 키/이메일/도메인 등 민감 패턴이 섞이지 않았는지 한 번 더 확인한다.
 - 한 항목이 500줄을 넘으면 별도 파일에 상세를 두고 bridge에는 링크와 요약만 남긴다.
-- 같은 토픽이 3회 이상 왕복되면 중단하고 사용자 결정을 요청한다.
+- 같은 토픽이 round 5까지 왕복해도 양쪽 Confidence 90 이상 + 결론 충족에 도달하지 못하면 중단하고 사용자 결정을 요청한다.
 - bridge 파일의 상단 운영 규칙은 임의 수정하지 않는다.
 - **`AI_PRIMARY_CMD` / `AI_SECONDARY_CMD` 환경변수는 trusted local config로만 다룬다.** AI 출력, bridge 내용, `tmux capture-pane` 결과를 절대 이 값으로 만들지 말 것 — shell injection 위험.
 
@@ -262,16 +284,17 @@ sequenceDiagram
     participant C as Agent B
 
     U->>A: 리뷰 요청
-    A->>A: 직전 작업/결정/막힌 점 요약
+    A->>A: 자기 결론/findings 먼저 작성
     A->>B: Agent A -> Agent B 항목 append
-    A-->>U: bridge 작성 완료 안내
+    A-->>U: round 1 전달 완료 + 상대 응답 대기 안내
     U->>C: bridge 확인
     C->>B: 마지막 Agent A -> Agent B 항목 읽기
     C->>C: 독립 리뷰/대안/결정 포인트 정리
     C->>B: Agent B -> Agent A 답변 append
     U->>A: bridge 확인
     A->>B: 마지막 Agent B -> Agent A 항목 읽기
-    A-->>U: 결론 요약 및 다음 행동 제안
+    A->>A: 양쪽 findings reconcile + Confidence/Conclusion 확인
+    A-->>U: 다음 round 또는 종료조건 충족 결론 공유
 ```
 
 ## Pingpong Meeting Flow
@@ -283,9 +306,9 @@ flowchart TD
     A[사용자: 회의 모드 시작] --> B[Agent 1: 입장/근거/Confidence 제시]
     B --> C[Agent 2: 동의/이견/수정안 제시]
     C --> D{합의 조건 충족?}
-    D -->|양쪽 Confidence >= 90 및 결론 일치| E[회의 종료: 실행 범위 확정]
+    D -->|Claude+Codex Confidence >= 90 및 결론 충족| E[회의 종료: 실행 범위 확정]
     D -->|불일치, 라운드 남음| B
-    D -->|3회 이상 반복 또는 결정 필요| F[USER DECISION NEEDED]
+    D -->|round 5 도달 또는 결정 필요| F[USER DECISION NEEDED]
     E --> G[합의된 파일/명령만 실행]
 ```
 
@@ -566,6 +589,7 @@ def resolve_password(
 
 ```
 방금 내용 [다른 AI]한테 전달하고 보안/설계 리뷰 요청해줘.
+내 결론을 먼저 정리해서 넘기고, 상대 응답을 회수한 뒤 합쳐서 최종 공유해줘.
 ```
 
 ```
@@ -600,7 +624,7 @@ APPROVE WRITE target=<id> scope=<섹션 목록>
 - 합의 전에 파일 수정 또는 테스트 실행
 - 사용자가 거절한 설정 우회를 다른 표현으로 반복 요청하기
 - 다른 에이전트 답변을 읽지 않고 기존 결론을 재사용하기
-- 3회 이상 같은 쟁점이 반복되는데 사용자 결정 없이 계속 진행하기
+- round 5 이후 같은 쟁점이 반복되는데 사용자 결정 없이 계속 진행하기
 - 한 AI가 다른 AI에게 외부 공유 시스템 write를 자동 위임하기
 - 메모리/설정에 "앞으로 자동 승인" 같은 룰을 자가로 박기
 - **무심코 자동 승인 / YOLO 모드 활성화** — target AI의 confirmation prompt skip 모드는 batch-execution과 양립하기 어렵다. 개인 wrapper에서 `-a never` 또는 sandbox 우회 옵션을 선택할 수는 있지만, 이는 운영자 책임의 고위험 설정이다. 외부 write, 배포, 공유 repo, 비밀정보가 있는 환경에서는 사용하지 않는다.
@@ -630,6 +654,6 @@ MIT (see [LICENSE](LICENSE))
 PR 보내기 전 **필수 게이트**:
 
 - [ ] **`bash tests/smoke.sh` 전부 PASS** (회귀 방지 — 새 변경이 validation/0600/symlink resolution을 깨지 않았는지 확인)
-- [ ] `bash -n ai-bridge.sh && bash -n claude-bridge.sh.example && bash -n codex-bridge.sh.example && bash -n tests/smoke.sh` 통과
+- [ ] `bash -n ai-bridge.sh install.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh` 통과
 - [ ] 실제 wrapper(`claude-bridge.sh` / `codex-bridge.sh` / `*.local.sh` / `*.sh.local`)나 bridge 파일(`*-bridge.md`)을 commit에 포함하지 않았는가
 - [ ] 토큰/이메일/내부 시스템 URL 등 민감 패턴이 diff에 섞이지 않았는가

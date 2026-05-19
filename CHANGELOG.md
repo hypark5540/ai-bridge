@@ -6,6 +6,25 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 
 ## [Unreleased]
 
+### Added
+- `install.sh` bootstrapper for first-time local setup: wrapper copy/chmod, shell profile PATH block, dependency checks, and optional tmux/Codex/Claude install prompts.
+- Smoke fixture coverage for installer wrapper preservation, `--force`, PATH block idempotency, `--no-path-edit`, and shell profile selection.
+- Direction wrappers now inject a one-line ai-bridge startup guide into the default Claude/Codex commands so first-run review/pingpong requests follow the bridge rules without separate global AI memory setup.
+- Startup guidance now states that review requests are pingpong rounds, not one-shot handoffs; the requester must read reviewer findings and either continue the round or conclude.
+- Pingpong termination is now explicit: conclude only when both Claude and Codex report Confidence >= 90 with satisfied/matching Conclusions, otherwise continue up to round 5 and then ask the user.
+- Codex defaults now start with `gpt-5.5` and `model_reasoning_effort=xhigh` in both codex-primary and claude-primary wrappers.
+- Review orchestration guidance now makes the primary AI a sequential coordinator: produce local findings, hand them to the reviewer, wait for the reviewer response, reconcile, then continue or conclude instead of emitting parallel independent finals.
+
+### Changed
+- Direction wrappers now default `AI_OPEN_TERMINAL=1`, so macOS users get the secondary tmux session in a new Terminal window by default. Set `AI_OPEN_TERMINAL=0` to keep single-window behavior.
+- Direction wrappers now default `AI_BRIDGE_WORKDIR` to the launch cwd instead of `$HOME`, so repo-local README/CONTRIBUTING/AGENTS/CLAUDE guidance is visible from the first run. Set `AI_BRIDGE_WORKDIR=$HOME` to keep the old behavior.
+
+### Fixed
+- Installer documentation now distinguishes dependency installation from wrapper/PATH setup for `--no-install`.
+- Installer documentation now states that `--yes` also auto-confirms remote installer prompts.
+- macOS bash users get the PATH block in `~/.bash_profile` instead of `~/.bashrc`.
+- Ignore accidental nested `ai-bridge/` clones inside the repo root.
+
 ## [0.1.2] — 2026-05-19
 
 ### Added
