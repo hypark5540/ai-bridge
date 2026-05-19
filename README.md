@@ -1,5 +1,9 @@
 # AI 교차 검증 Flow
 
+[![smoke](https://github.com/hypark5540/ai-bridge/actions/workflows/smoke.yml/badge.svg?branch=main)](https://github.com/hypark5540/ai-bridge/actions/workflows/smoke.yml)
+[![release](https://img.shields.io/github/v/release/hypark5540/ai-bridge?sort=semver)](https://github.com/hypark5540/ai-bridge/releases)
+[![license](https://img.shields.io/github/license/hypark5540/ai-bridge)](LICENSE)
+
 Claude Code와 Codex CLI 같은 두 개 이상의 터미널 기반 AI를 단일 작업에 함께 쓰는 **교차 검증 운영 절차**.
 
 한 에이전트가 놓친 제약, 보안 리스크, 구현 대안, 사용자 의도를 다른 에이전트가 검토하게 만들어 결정 품질을 높이는 게 목적이다. 모든 로컬 개발/문서화/리뷰 작업에 적용할 수 있는 일반 Flow다.

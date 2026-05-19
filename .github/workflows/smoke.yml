@@ -104,3 +104,19 @@ jobs:
         with:
           args: --no-progress --max-concurrency 4 --accept 200,204,206,429 './**/*.md'
           fail: false  # link 깨짐은 advisory — release 차단 아님. 결과는 PR 코멘트로 확인.
+
+  secret-scan:
+    # Secret leak 차단 — bridge 파일이나 wrapper template에 토큰/키/AWS 자격이 commit되는 걸 사전 catch.
+    # gitleaks는 OSS + GitHub Marketplace action. action license 요구는 enterprise org만 — public/personal repo는 무료.
+    name: secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0  # full history — 과거 commit의 leak도 검출
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"          # PR 코멘트 X (private repo만 사용. public OK이지만 노이즈)
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "true"    # 결과 artifact 저장 — 디버깅용
+          GITLEAKS_ENABLE_SUMMARY: "true"            # job summary에 결과 표시

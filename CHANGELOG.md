@@ -6,6 +6,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 
 ## [Unreleased]
 
+## [0.1.2] — 2026-05-19
+
+### Added
+- **신규 CI job `secret-scan` (gitleaks)** — bridge 파일·wrapper template에 토큰/키/AWS 자격이 commit되는 걸 사전 차단. fetch-depth 0으로 과거 commit history도 스캔. GitHub Marketplace gitleaks-action v2 사용 (public/personal repo 무료).
+- **README badges** — smoke CI status, latest release, license. 첫 화면에서 repo 건강도 한눈 확인.
+
+### Changed
+- `actions/checkout` v4 → v6 (dependabot PR #1, merge `84547da`). Node 24 runtime + credentials separate file. 우리 use case는 checkout 뒤 git push/Docker credential handoff 없어서 호환성 영향 없음. Node 20 deprecation warning 해소 보너스.
+
+### Notes
+- v0.1.1 PR #1 dependabot이 stale base(`6ff618c`) 위에 빌드되어 shellcheck strict job fail. `@dependabot rebase` 코멘트로 main의 shellcheck fix 끌어와 머지. 다음부터는 dependabot이 자동으로 최신 main에 rebase하므로 같은 패턴 안 생김.
+
 ## [0.1.1] — 2026-05-19
 
 ### Fixed
@@ -57,6 +69,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 - First commit. Tag `v0.1.0` 추정.
 - Breaking change 없음 (이전 버전 없음).
 
-[Unreleased]: https://github.com/hypark5540/ai-bridge/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/hypark5540/ai-bridge/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/hypark5540/ai-bridge/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/hypark5540/ai-bridge/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hypark5540/ai-bridge/releases/tag/v0.1.0
