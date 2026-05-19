@@ -4,15 +4,40 @@ Claude Code와 Codex CLI 같은 두 개 이상의 터미널 기반 AI를 단일 
 
 한 에이전트가 놓친 제약, 보안 리스크, 구현 대안, 사용자 의도를 다른 에이전트가 검토하게 만들어 결정 품질을 높이는 게 목적이다. 모든 로컬 개발/문서화/리뷰 작업에 적용할 수 있는 일반 Flow다.
 
+## 시작 진입점 (실제 사용자가 매일 실행하는 것)
+
+이 repo는 두 개의 **direction wrapper**를 통해 사용한다. **어느 AI가 "주" 실행 주체이고 어느 쪽이 "mutex(검토자)" 인지** 매번 선택해서 시작한다:
+
+| Wrapper | 주(현재 터미널) | mutex(tmux) | 일반 용도 |
+|---|---|---|---|
+| **`./claude-bridge.sh`** | Claude Code | Codex CLI | Claude로 코드 작성/리팩토링하면서 Codex에게 보안/패턴 리뷰 요청 |
+| **`./codex-bridge.sh`** | Codex CLI | Claude Code | Codex로 빠르게 패치 적용하면서 Claude에게 설계/대안 검토 요청 |
+
+설치 후 일상 흐름은 다음 한 줄이 입구:
+
+```bash
+./claude-bridge.sh    # claude → codex로 검토 핑퐁
+# 또는
+./codex-bridge.sh     # codex → claude로 검토 핑퐁
+```
+
+자세한 install + env 설정은 [빠른 시작](#빠른-시작), 트리거 워딩/회의 모드는 [기본 Review Flow](#기본-review-flow) / [Pingpong Meeting Flow](#pingpong-meeting-flow) 참고.
+
 > **English quick start** — A thin orchestration tool that runs two terminal-based AI CLIs (e.g., Claude Code + Codex CLI) side-by-side on the same task: one in the current terminal, the other in a tmux pane, with a shared markdown "bridge" file as the message box.
 >
 > ```bash
 > # Clone wherever you like — the wrapper resolves its repo path dynamically.
 > git clone git@github.com:hypark5540/ai-bridge.git
 > cd ai-bridge
+>
+> # Pick a direction wrapper (claude-primary OR codex-primary) and install:
 > cp claude-bridge.sh.example claude-bridge.sh && chmod +x claude-bridge.sh
-> # Edit AI_PRIMARY_CMD / AI_SECONDARY_CMD inside claude-bridge.sh to match your local CLIs.
-> ./claude-bridge.sh
+> cp codex-bridge.sh.example  codex-bridge.sh  && chmod +x codex-bridge.sh
+> # Edit AI_PRIMARY_CMD / AI_SECONDARY_CMD inside each copy to match your local CLIs.
+>
+> # Daily entry point — invoke ONE of these:
+> ./claude-bridge.sh    # Claude is primary, Codex is mutex/reviewer in tmux pane
+> ./codex-bridge.sh     # Codex is primary, Claude is mutex/reviewer in tmux pane
 > ```
 >
 > No pre-existing directories or files required — `~/ai-bridge-pairs/` and the per-pair bridge file are auto-created at runtime (`mkdir -p` + `chmod 0600`). See [Environment variables](#환경변수-reference) for `AI_BRIDGE_HOME` / `AI_BRIDGE_PAIRS_DIR` / `AI_BRIDGE_FILE` overrides.

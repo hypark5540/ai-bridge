@@ -6,8 +6,14 @@ on:
   pull_request:
     branches: [main]
 
+# 동일 PR/branch에서 새 push가 들어오면 이전 in-flight run은 cancel — quota 절약.
+concurrency:
+  group: smoke-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   syntax-and-smoke:
+    name: smoke (${{ matrix.os }})
     strategy:
       fail-fast: false
       matrix:
@@ -19,6 +25,12 @@ jobs:
       - name: Install tmux (Linux runner — macOS preinstalled)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y tmux
+
+      - name: Tool versions
+        run: |
+          echo "bash: $(bash --version | head -1)"
+          echo "tmux: $(tmux -V)"
+          uname -a
 
       - name: bash -n syntax check
         run: |
@@ -36,14 +48,59 @@ jobs:
           echo "$out"
           [[ "$out" == "ai-bridge $(cat VERSION)" ]] || { echo "VERSION mismatch: '$out' vs file '$(cat VERSION)'"; exit 1; }
 
+      - name: Verify wrapper --version delegates to core (no side-effect)
+        # Round-3 P1 회귀 가드: wrapper.example --version이 pair setup 경로로 진입하면 안 됨
+        run: |
+          set -euo pipefail
+          PDIR=$(mktemp -d)
+          BEFORE=$(find "$PDIR" -mindepth 1 | wc -l | tr -d ' ')
+          out=$(AI_BRIDGE_PAIRS_DIR="$PDIR" bash claude-bridge.sh.example --version)
+          AFTER=$(find "$PDIR" -mindepth 1 | wc -l | tr -d ' ')
+          echo "$out"
+          [[ "$out" == "ai-bridge $(cat VERSION)" ]] || { echo "wrapper --version 출력 불일치"; exit 1; }
+          [[ "$BEFORE" == "0" && "$AFTER" == "0" ]] || { echo "side-effect: PAIRS_DIR에 $AFTER개 파일 생성됨"; ls -la "$PDIR"; exit 1; }
+          rm -rf "$PDIR"
+
+  macos-bash-3-compat:
+    # README가 "macOS bash 3.2 호환" 주장 — 명시적으로 macOS 기본 /bin/bash로 syntax 검증
+    name: macOS /bin/bash 3.2 compat
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: /bin/bash version (macOS default)
+        run: /bin/bash --version | head -1
+      - name: syntax check via macOS default bash (/bin/bash, not brew bash)
+        run: |
+          for f in ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh; do
+            echo "→ /bin/bash -n $f"
+            /bin/bash -n "$f"
+          done
+      - name: --version via /bin/bash
+        run: |
+          out=$(/bin/bash ai-bridge.sh --version)
+          echo "$out"
+          [[ "$out" == "ai-bridge $(cat VERSION)" ]] || exit 1
+
   shellcheck:
+    name: shellcheck (warning+)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run shellcheck
+      - name: Run shellcheck (severity=warning, strict — fail on warning or above)
         uses: ludeeus/action-shellcheck@master
         with:
           severity: warning
           scandir: .
           additional_files: ai-bridge.sh claude-bridge.sh.example codex-bridge.sh.example tests/smoke.sh
-        continue-on-error: true  # 초기 release는 advisory — warn만 보고, fail은 안 함
+          # NOTE: continue-on-error 제거 — warning 발생 시 CI fail. v0.1.x에서 strict 도입.
+
+  links:
+    # README / CHANGELOG / docs 안 외부 link 깨짐 catch (lychee = 빠르고 false-positive 낮음)
+    name: markdown link check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --max-concurrency 4 --accept 200,204,206,429 './**/*.md'
+          fail: false  # link 깨짐은 advisory — release 차단 아님. 결과는 PR 코멘트로 확인.

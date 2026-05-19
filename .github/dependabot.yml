@@ -1,0 +1,21 @@
+version: 2
+updates:
+  # GitHub Actions 버전 자동 업데이트 (보안 패치 + major version bump 알림)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "09:00"
+      timezone: Asia/Seoul
+    commit-message:
+      prefix: "ci"
+      include: scope
+    labels:
+      - dependencies
+      - ci
+    open-pull-requests-limit: 5
+    groups:
+      # patch + minor는 그룹 PR로 묶어서 노이즈 감소. major만 개별 PR.
+      actions-minor:
+        update-types: [minor, patch]

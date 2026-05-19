@@ -13,7 +13,11 @@ ai-bridge에 기여해주셔서 감사합니다. 이 문서는 PR을 보내기 �
    shellcheck *.sh tests/*.sh # 있다면
    ```
 4. **PR 생성** — `.github/PULL_REQUEST_TEMPLATE.md` 양식을 채워주세요.
-5. **CI 통과 확인** — GitHub Actions의 smoke matrix(Ubuntu + macOS)가 green.
+5. **CI 통과 확인** — GitHub Actions가 4개 job 돌립니다:
+   - `smoke (ubuntu-latest)` / `smoke (macos-latest)` — bash -n + tests/smoke.sh + --version 동작 + wrapper side-effect 가드 (matrix)
+   - `macOS /bin/bash 3.2 compat` — macOS 기본 bash 3.2로 syntax 검증 (README 호환성 주장 검증)
+   - `shellcheck (warning+)` — shellcheck severity ≥ warning이면 fail (strict)
+   - `markdown link check` — README/CHANGELOG/docs 외부 link 깨짐 advisory
 6. **리뷰 대응** — 코멘트 반영 후 force-push 대신 추가 commit. 머지 직전 squash는 maintainer 재량.
 
 ## 커밋 메시지

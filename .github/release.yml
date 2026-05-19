@@ -1,0 +1,44 @@
+# Release Notes 자동 카테고리화 — Releases UI에서 "Generate release notes" 클릭 시 적용
+# https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+
+changelog:
+  exclude:
+    labels:
+      - skip-changelog
+      - dependencies
+    authors:
+      - dependabot
+  categories:
+    - title: ⚠️ Breaking Changes
+      labels:
+        - breaking
+        - "breaking-change"
+    - title: ✨ Features
+      labels:
+        - feature
+        - feat
+        - enhancement
+    - title: 🐛 Fixes
+      labels:
+        - fix
+        - bug
+        - bugfix
+    - title: 🔒 Security
+      labels:
+        - security
+    - title: 📚 Documentation
+      labels:
+        - docs
+        - documentation
+    - title: 🧪 Tests
+      labels:
+        - test
+        - tests
+    - title: 🤖 CI / Tooling
+      labels:
+        - ci
+        - tooling
+        - chore
+    - title: 🧹 Other
+      labels:
+        - "*"
