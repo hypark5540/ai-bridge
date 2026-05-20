@@ -6,6 +6,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 
 ## [Unreleased]
 
+### Added
+- `AGENTS.md` — AI 코딩 어시스턴트용 repo 가이드 (project context, 검증 명령, bridge pingpong 규칙, safety 규칙).
+
 ## [0.2.0] — 2026-05-20
 
 ### ⚠️ Breaking Changes
