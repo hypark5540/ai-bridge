@@ -416,6 +416,49 @@ else
 fi
 
 echo
+echo "── 15. force-set: wrapper가 AI_PRIMARY_CMD/SECONDARY_CMD를 무조건 결정 ──"
+# wrapper.example을 .sh로 cp (template guard 우회) — private wrapper는 gitignored라 CI에 없음.
+FORCESET_DIR="$TMPDIR_TEST/forceset"
+mkdir -p "$FORCESET_DIR"
+cp "$SCRIPT_DIR/codex-bridge.sh.example" "$FORCESET_DIR/codex-bridge.sh"
+cp "$SCRIPT_DIR/ai-bridge.sh" "$FORCESET_DIR/ai-bridge.sh"
+cp "$SCRIPT_DIR/VERSION" "$FORCESET_DIR/VERSION"
+chmod +x "$FORCESET_DIR/codex-bridge.sh" "$FORCESET_DIR/ai-bridge.sh"
+
+# (가) 깨끗한 env → wrapper default(codex) 적용
+out=$(env -i HOME="$HOME" PATH="$PATH" TERM=dumb AI_BRIDGE_DRY_RUN=1 \
+      AI_BRIDGE_PAIRS_DIR="$FORCESET_DIR/pairs" \
+      bash "$FORCESET_DIR/codex-bridge.sh" </dev/null 2>&1 || true)
+if echo "$out" | grep -q "primary: codex"; then
+    pass "force-set: 깨끗한 env에서 wrapper default(codex) 적용"
+else
+    fail "force-set 깨끗한 env 실패. Output: $out"
+fi
+
+# (나) AI_PRIMARY_CMD 오염 + override 없음 → fail-fast
+out=$(env -i HOME="$HOME" PATH="$PATH" TERM=dumb AI_BRIDGE_DRY_RUN=1 \
+      AI_BRIDGE_PAIRS_DIR="$FORCESET_DIR/pairs" \
+      AI_PRIMARY_CMD="claude" \
+      bash "$FORCESET_DIR/codex-bridge.sh" </dev/null 2>&1 || true)
+if echo "$out" | grep -q "v0.2.0부터 무시/거부"; then
+    pass "force-set: 오염된 AI_PRIMARY_CMD env → fail-fast"
+else
+    fail "force-set fail-fast 미발동. Output: $out"
+fi
+
+# (다) AI_BRIDGE_PRIMARY_CMD_OVERRIDE → 오염 무시하고 override 적용
+out=$(env -i HOME="$HOME" PATH="$PATH" TERM=dumb AI_BRIDGE_DRY_RUN=1 \
+      AI_BRIDGE_PAIRS_DIR="$FORCESET_DIR/pairs" \
+      AI_PRIMARY_CMD="claude" \
+      AI_BRIDGE_PRIMARY_CMD_OVERRIDE="codex --smoke-override-marker" \
+      bash "$FORCESET_DIR/codex-bridge.sh" </dev/null 2>&1 || true)
+if echo "$out" | grep -q "smoke-override-marker"; then
+    pass "force-set: AI_BRIDGE_PRIMARY_CMD_OVERRIDE 적용 (오염 무시)"
+else
+    fail "force-set override 미적용. Output: $out"
+fi
+
+echo
 echo "════════════════════════════════════════"
 echo "  Pass: $PASS"
 echo "  Fail: $FAIL"

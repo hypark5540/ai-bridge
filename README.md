@@ -142,8 +142,10 @@ export AI_PRIMARY_CMD="codex -m gpt-5.5 -c model_reasoning_effort=xhigh -a on-re
 | `AI_BRIDGE_WORKDIR` | wrapper 실행 시점의 `$PWD` (wrapper) / `$HOME` (core fallback) | tmux 새 세션 default-path + primary AI exec cwd. 기본값이 실행한 프로젝트라 repo별 README/CONTRIBUTING/AGENTS/CLAUDE 지침을 첫 실행부터 읽기 쉽다. | wrapper, core |
 | `AI_PAIR_TAG` | `$$` (wrapper PID) | pair tag — 가독성 위해 명명 가능. regex `^[A-Za-z0-9_.-]+$` | wrapper |
 | `AI_TMUX_SESSION` | `codex-<PAIR_ID>` / `claude-<PAIR_ID>` | tmux 세션 이름. regex `^[A-Za-z0-9_.-]+$` (콜론 제외 — tmux target 오해석 차단) | core |
-| `AI_PRIMARY_CMD` | (wrapper에서 설정) | 현재 터미널에서 exec할 주 AI CLI. **trusted local config only** | core |
-| `AI_SECONDARY_CMD` | (wrapper에서 설정) | tmux 안에서 실행할 보조 AI CLI. **trusted local config only** | core |
+| `AI_PRIMARY_CMD` | wrapper가 **force-set** (v0.2.0~) | 현재 터미널에서 exec할 주 AI CLI. wrapper 정체성이라 env 직접 설정 불가 — override는 아래 변수로. **trusted local config only** | core |
+| `AI_SECONDARY_CMD` | wrapper가 **force-set** (v0.2.0~) | tmux 안에서 실행할 보조 AI CLI. 위와 동일. **trusted local config only** | core |
+| `AI_BRIDGE_PRIMARY_CMD_OVERRIDE` | (unset) | 주 AI CLI 명령을 의도적으로 customize. set하면 wrapper default 대신 이 값 사용. nested env 상속과 구분되는 명시 변수. **trusted local config only** | wrapper |
+| `AI_BRIDGE_SECONDARY_CMD_OVERRIDE` | (unset) | 보조 AI CLI 명령 customize. 위와 동일. **trusted local config only** | wrapper |
 | `Codex model defaults` | `gpt-5.5` + `model_reasoning_effort=xhigh` | `codex-bridge.sh`의 주 Codex와 `claude-bridge.sh`의 보조 Codex 기본 모델/추론강도 | wrapper |
 | `AI_OPEN_TERMINAL` | `1` (wrapper) / `0` (core fallback) | `1` = macOS Terminal.app 새 창 자동 열기. 필요하면 `AI_OPEN_TERMINAL=0 ./codex-bridge.sh`처럼 끌 수 있음 | wrapper, core |
 | `AI_TMUX_HISTORY_LIMIT` | `10000` | tmux scrollback 라인 한도 (>= 100) | core |

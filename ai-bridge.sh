@@ -252,10 +252,15 @@ echo "    ${RED}✗${RESET} AI 사이 자동 위임 — 분류기에 차단됨"
 echo ""
 echo "  ${BOLD}금지:${RESET}"
 echo "    - bridge에 실제 토큰/비밀번호 적기"
-echo "    - 자동 승인 / YOLO 모드 (--yes, auto-approve, Ctrl+Y)"
 echo "    - observer subagent에 send-keys/write 권한"
 echo "    - 한 subagent에 observer + executor 합치기"
 echo "    - AI 출력/bridge 내용을 AI_PRIMARY_CMD/AI_SECONDARY_CMD에 끼우기"
+echo ""
+echo "  ${BOLD}주의 (YOLO/bypass):${RESET}"
+echo "    - 자동 승인/bypass (--dangerously-bypass, danger-full-access, -a never, --yes,"
+echo "      auto-approve, Ctrl+Y)는 신뢰된 개인 throwaway 환경에서만."
+echo "    - bridge 자동 paste(상대 AI가 보낸 명령 실행)와 결합 시 위험 가중 — 절대 금지는"
+echo "      아니나 운영자가 위험을 명시 인지한 상태에서만."
 echo ""
 echo "  ${DIM}자세한 정책: README.md 참조${RESET}"
 
@@ -292,6 +297,18 @@ echo "  bridge 보기:        ${BOLD}tail -50 $BRIDGE_FILE${RESET}"
 echo ""
 
 if [[ -n "$PRIMARY_CMD" ]]; then
+    # YOLO/bypass 모드 감지 — 사용자가 매 실행마다 인지하도록 명시 경고.
+    # PRIMARY_CMD는 trusted local config 문자열(이미 control-char 검증됨)이라 substring 검사 안전.
+    if [[ "$PRIMARY_CMD" == *"--dangerously-bypass-approvals-and-sandbox"* \
+        || "$PRIMARY_CMD" == *"danger-full-access"* \
+        || "$PRIMARY_CMD" == *"-a never"* ]]; then
+        echo ""
+        echo "  ${BOLD}${RED}⚠️  YOLO / bypass 모드${RESET}"
+        echo "  ${RED}주 AI가 승인 prompt 없이 / sandbox 밖에서 명령을 실행합니다.${RESET}"
+        echo "  ${RED}신뢰된 개인 throwaway 환경에서만 사용하세요 — bridge 자동 paste와 결합 시 위험 가중.${RESET}"
+        echo "  ${DIM}cmd: $PRIMARY_CMD${RESET}"
+        echo ""
+    fi
     info "AI_PRIMARY_CMD 설정됨 — 현재 터미널을 다음 명령으로 전환 (cwd=$BRIDGE_WORKDIR):"
     info "  $PRIMARY_CMD"
     sleep 1

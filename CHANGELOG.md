@@ -6,7 +6,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-05-20
+
+### ⚠️ Breaking Changes
+- **Direction wrappers force-set `AI_PRIMARY_CMD` / `AI_SECONDARY_CMD`.** 이 두 변수는 wrapper의 정체성(코드bridge=codex primary)이라 매 invocation마다 wrapper가 무조건 결정한다. 기존 `${AI_PRIMARY_CMD:-default}` override 패턴 제거.
+  - **이유**: `${VAR:-}` 패턴은 nested 실행(ai-bridge로 띄운 AI 내부 셸에서 wrapper 재실행) 시 부모 env의 `AI_PRIMARY_CMD`를 상속 → wrapper의 의도된 명령(YOLO 등)이 silent하게 무시됨.
+  - **마이그레이션**: `AI_PRIMARY_CMD` / `AI_SECONDARY_CMD`를 env로 직접 설정해 customize하던 사용자는 신규 `AI_BRIDGE_PRIMARY_CMD_OVERRIDE` / `AI_BRIDGE_SECONDARY_CMD_OVERRIDE`로 이전. 구 변수가 외부에서 set인데 override 변수가 없으면 **fail-fast** (silent 오염 방지).
+
 ### Added
+- `AI_BRIDGE_PRIMARY_CMD_OVERRIDE` / `AI_BRIDGE_SECONDARY_CMD_OVERRIDE` — pair-scoped 실행 명령을 의도적으로 customize하는 명시 변수. nested env 상속과 구분됨.
+- core `ai-bridge.sh` — `AI_PRIMARY_CMD`에 YOLO/bypass 패턴(`--dangerously-bypass-approvals-and-sandbox` / `danger-full-access` / `-a never`) 감지 시 exec 직전 ⚠️ 경고 배너 (실제 command 문자열 포함).
+- smoke.sh force-set 회귀 케이스 3건 (깨끗한 env default / 오염 env fail-fast / override 변수 적용).
 - `install.sh` bootstrapper for first-time local setup: wrapper copy/chmod, shell profile PATH block, dependency checks, and optional tmux/Codex/Claude install prompts.
 - Smoke fixture coverage for installer wrapper preservation, `--force`, PATH block idempotency, `--no-path-edit`, and shell profile selection.
 - Direction wrappers now inject a one-line ai-bridge startup guide into the default Claude/Codex commands so first-run review/pingpong requests follow the bridge rules without separate global AI memory setup.
@@ -18,6 +28,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 ### Changed
 - Direction wrappers now default `AI_OPEN_TERMINAL=1`, so macOS users get the secondary tmux session in a new Terminal window by default. Set `AI_OPEN_TERMINAL=0` to keep single-window behavior.
 - Direction wrappers now default `AI_BRIDGE_WORKDIR` to the launch cwd instead of `$HOME`, so repo-local README/CONTRIBUTING/AGENTS/CLAUDE guidance is visible from the first run. Set `AI_BRIDGE_WORKDIR=$HOME` to keep the old behavior.
+- `ai-bridge.sh` cheatsheet — "금지: YOLO 모드" 절을 별도 "주의 (YOLO/bypass)" 절로 톤 조정. 절대 금지가 아니라 "신뢰된 개인 throwaway 환경에서만, bridge 자동 paste 결합 시 위험 가중"의 조건부 경고. codex CLI의 의도적 `--dangerously-bypass` 사용(개인 private wrapper)과 충돌하지 않도록.
 
 ### Fixed
 - Installer documentation now distinguishes dependency installation from wrapper/PATH setup for `--no-install`.
@@ -88,7 +99,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 - First commit. Tag `v0.1.0` 추정.
 - Breaking change 없음 (이전 버전 없음).
 
-[Unreleased]: https://github.com/hypark5540/ai-bridge/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/hypark5540/ai-bridge/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hypark5540/ai-bridge/compare/v0.1.2...v0.2.0
 [0.1.2]: https://github.com/hypark5540/ai-bridge/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/hypark5540/ai-bridge/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hypark5540/ai-bridge/releases/tag/v0.1.0

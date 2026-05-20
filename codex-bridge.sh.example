@@ -106,9 +106,24 @@ export AI_TMUX_SESSION="claude-${PAIR_ID}"
 AI_BRIDGE_BOOTSTRAP_PROMPT="${AI_BRIDGE_BOOTSTRAP_PROMPT:-You are running under ai-bridge. For any review, pingpong, or cross-AI request, first inspect local repo guidance such as README.md, CONTRIBUTING.md, AGENTS.md, and CLAUDE.md when present. The primary AI is the sequential coordinator: create your own findings first, send them through the bridge to the reviewer, wait for and read the reviewer response, then reconcile and continue the next round or conclude. Do not run independent parallel reviews or present separate final answers before the reviewer response is folded back in. Default review mode is pingpong, not one-shot. Do not conclude until both Claude and Codex have Confidence >= 90 with matching/satisfied Conclusions, or until pingpong reaches round 5 and needs a user decision. Follow the ai-bridge Review Flow: use the bridge file at $AI_BRIDGE_FILE for Codex/Claude handoff, keep secrets out, cite file:line findings, include Confidence/Conclusion for pingpong reviews, and do not execute external writes without explicit user approval.}"
 AI_BRIDGE_BOOTSTRAP_PROMPT_Q="$(printf '%q' "$AI_BRIDGE_BOOTSTRAP_PROMPT")"
 
-# ⚠️ 다음 4개 값은 trusted local config — 본인 환경의 CLI 명령으로 교체하세요.
-export AI_PRIMARY_CMD="${AI_PRIMARY_CMD:-codex -m gpt-5.5 -c model_reasoning_effort=xhigh -a on-request -s workspace-write $AI_BRIDGE_BOOTSTRAP_PROMPT_Q}"  # 현재 터미널에서 exec할 주 AI CLI
-export AI_SECONDARY_CMD="${AI_SECONDARY_CMD:-claude --append-system-prompt $AI_BRIDGE_BOOTSTRAP_PROMPT_Q}"             # tmux 안에서 실행할 보조 AI CLI
+# ── pair-scoped 실행 명령은 wrapper가 force-set ─────────────
+# AI_PRIMARY_CMD/AI_SECONDARY_CMD는 이 wrapper의 정체성 (codex-bridge = codex primary).
+# 매 invocation마다 무조건 결정 — nested 실행 시 부모 env 상속으로 오염되는 것 차단.
+# 의도적 customize는 AI_BRIDGE_PRIMARY_CMD_OVERRIDE / AI_BRIDGE_SECONDARY_CMD_OVERRIDE 로만.
+# 구 방식(AI_PRIMARY_CMD env 직접 set)은 v0.2.0부터 fail-fast — silent 오염 방지.
+for _v in AI_PRIMARY_CMD AI_SECONDARY_CMD; do
+    _ov="AI_BRIDGE_${_v#AI_}_OVERRIDE"
+    if [[ -n "${!_v:-}" && -z "${!_ov:-}" ]]; then
+        echo "ERROR: $_v 를 env로 직접 설정하는 건 v0.2.0부터 무시/거부됩니다 (nested 오염 방지)." >&2
+        echo "       의도적 override는 $_ov 를 쓰세요. 아니면 'unset $_v' 후 재실행." >&2
+        exit 1
+    fi
+done
+unset _v _ov
+
+# ⚠️ 아래 default는 trusted local config — 본인 환경 CLI로 교체하거나 *_OVERRIDE env로 덮어쓰기.
+export AI_PRIMARY_CMD="${AI_BRIDGE_PRIMARY_CMD_OVERRIDE:-codex -m gpt-5.5 -c model_reasoning_effort=xhigh -a on-request -s workspace-write $AI_BRIDGE_BOOTSTRAP_PROMPT_Q}"   # 현재 터미널 주 AI
+export AI_SECONDARY_CMD="${AI_BRIDGE_SECONDARY_CMD_OVERRIDE:-claude --append-system-prompt $AI_BRIDGE_BOOTSTRAP_PROMPT_Q}"  # tmux 안 보조 AI
 export AI_OPEN_TERMINAL="${AI_OPEN_TERMINAL:-1}"                  # 1 = macOS Terminal.app 새 창 자동 열기
 export AI_BRIDGE_WORKDIR="${AI_BRIDGE_WORKDIR:-$PWD}"    # primary/mutex 모두 시작 cwd
 unset AI_BRIDGE_BOOTSTRAP_PROMPT AI_BRIDGE_BOOTSTRAP_PROMPT_Q
