@@ -109,6 +109,16 @@ warn()   { echo "  ${YELLOW}⚠${RESET}  $1"; }
 fail()   { echo "  ${RED}✗${RESET} $1"; }
 info()   { echo "    ${DIM}$1${RESET}"; }
 
+# YOLO/bypass 감지 — codex(--dangerously-bypass.../danger-full-access/-a never) +
+# claude(--dangerously-skip-permissions/bypassPermissions). trusted local config 문자열 전제.
+is_yolo_cmd() {
+    case "$1" in
+        *"--dangerously-bypass-approvals-and-sandbox"*|*"danger-full-access"*|*"-a never"* \
+        |*"--dangerously-skip-permissions"*|*"bypassPermissions"*) return 0 ;;
+        *) return 1 ;;
+    esac
+}
+
 # ── 1. 정책 파일 위치 (tmux 의존 없음 — DRY_RUN/CI에서도 작동) ──
 header "1. 정책 파일"
 
@@ -220,6 +230,9 @@ else
     if [[ -n "$SECONDARY_CMD" ]]; then
         tmux send-keys -t "$TMUX_SESSION" "$SECONDARY_CMD" Enter
         ok "tmux 세션 생성 + '$SECONDARY_CMD' 시작 명령 전송"
+        if is_yolo_cmd "$SECONDARY_CMD"; then
+            warn "${RED}검토자(tmux)가 YOLO/bypass 모드 — 승인 prompt 없이 명령 실행. 신뢰 환경에서만 사용.${RESET}"
+        fi
         info "attach가 live state catch-up (sleep 불필요)"
     else
         ok "tmux 세션 생성 (AI_SECONDARY_CMD 미설정 — attach 후 직접 실행)"
@@ -299,9 +312,7 @@ echo ""
 if [[ -n "$PRIMARY_CMD" ]]; then
     # YOLO/bypass 모드 감지 — 사용자가 매 실행마다 인지하도록 명시 경고.
     # PRIMARY_CMD는 trusted local config 문자열(이미 control-char 검증됨)이라 substring 검사 안전.
-    if [[ "$PRIMARY_CMD" == *"--dangerously-bypass-approvals-and-sandbox"* \
-        || "$PRIMARY_CMD" == *"danger-full-access"* \
-        || "$PRIMARY_CMD" == *"-a never"* ]]; then
+    if is_yolo_cmd "$PRIMARY_CMD"; then
         echo ""
         echo "  ${BOLD}${RED}⚠️  YOLO / bypass 모드${RESET}"
         echo "  ${RED}주 AI가 승인 prompt 없이 / sandbox 밖에서 명령을 실행합니다.${RESET}"

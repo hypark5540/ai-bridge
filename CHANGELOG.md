@@ -6,8 +6,22 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the 
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-05-28
+
 ### Added
 - `AGENTS.md` — AI 코딩 어시스턴트용 repo 가이드 (project context, 검증 명령, bridge pingpong 규칙, safety 규칙).
+- **6-dimension Score rubric for pingpong reviews** — Correctness, Safety, Verification, Design Fit, Clarity, Reversibility로 검토 대상의 *품질*을 0–10 사이로 평가. 해당 안 되는 차원은 `N/A`. 최종 `Score`는 `N/A` 제외 산술 평균 (0–10).
+  - **Score와 Confidence는 독립적**: `Score`=검토 대상의 품질, `Confidence`=내가 매긴 점수에 대한 내 자신감. 둘 다 각자 임계를 넘어야 종료 가능 (`Score 9.0 + Confidence 60`은 "안 본 영역이 있음"으로 미충족, `Score 6.0 + Confidence 95`는 "확실히 부족함"으로 미충족).
+  - 프로젝트별 plugin 차원(예: SDK 준수, 성능, API 호환성, 비용)은 표 아래 자유롭게 추가. 별도 가중치 합의 없으면 평균에 동일 가중치로 포함.
+- Bootstrap prompt(`claude-bridge.sh`, `codex-bridge.sh`, `claude-bridge.sh.example`, `codex-bridge.sh.example` 4파일)에 Score 룰 + 6차원 footer 요구사항 주입 → 새 세션 첫 turn부터 Claude/Codex 모두 자동 적용.
+- README.md에 `### Score 기준 (6차원 루브릭)` 섹션 신규 — Confidence 기준 섹션 바로 뒤. AGENTS.md에 `## Score Rubric` 섹션 신규.
+
+### Changed
+- **Pingpong 종료조건 강화** — 기존 *"양쪽 Confidence ≥ 90 + Conclusion 일치"* → **"Claude와 Codex 각각 Confidence ≥ 90 AND Score ≥ 9.0 AND Conclusion 일치"**.
+  - **이유**: Confidence는 *검토 충실도*만 신호하기 때문에 양쪽이 자신감 있게 잘못된 결론에 수렴할 수 있음(false convergence). 객관적 품질 임계(Score ≥ 9.0)를 함께 요구해 차단.
+  - **영향**: 옛 룰만 아는 reviewer가 Score 없이 응답하면 종료조건 미충족 → round 5까지 진행 후 `USER DECISION NEEDED`로 안전 fall-through. 데이터 손실/crash 없음.
+- 종료조건 표현을 6곳 모두 *"Claude·Codex 양쪽 모두"* 명시로 통일 (AGENTS.md + README.md 본문 + mermaid diagram). 한쪽만 충족한 케이스로 절대 종료되지 않게 문구 정합성 확보.
+- Pingpong 회의 footer 형식: 기존 `Confidence + Conclusion` 2줄 → `## Score` 표 + `Score + Confidence + Conclusion` 3줄 footer.
 
 ## [0.2.0] — 2026-05-20
 

@@ -47,7 +47,18 @@ treat it as a pingpong meeting seed, not a one-shot handoff.
 4. End the entry with:
 
    ```markdown
+   ## Score
+   | Dimension     | Score       | Note |
+   |---------------|-------------|------|
+   | Correctness   | x/10 or N/A |      |
+   | Safety        | x/10 or N/A |      |
+   | Verification  | x/10 or N/A |      |
+   | Design Fit    | x/10 or N/A |      |
+   | Clarity       | x/10 or N/A |      |
+   | Reversibility | x/10 or N/A |      |
+
    ---
+   **Score:** <average of non-N/A dimensions, 0-10>
    **Confidence:** <0-100>
    **Conclusion:** <one-line current conclusion or review ask>
    ```
@@ -73,13 +84,51 @@ When a message contains `[PINGPONG MEETING — round N/5]` or
 - End every meeting response with:
 
   ```markdown
+  ## Score
+  | Dimension     | Score       | Note |
+  |---------------|-------------|------|
+  | Correctness   | x/10 or N/A |      |
+  | Safety        | x/10 or N/A |      |
+  | Verification  | x/10 or N/A |      |
+  | Design Fit    | x/10 or N/A |      |
+  | Clarity       | x/10 or N/A |      |
+  | Reversibility | x/10 or N/A |      |
+
   ---
+  **Score:** <average of non-N/A dimensions, 0-10>
   **Confidence:** <0-100>
   **Conclusion:** <one-line conclusion>
   ```
 
-The meeting can stop when both sides converge at Confidence >= 90 with matching
-conclusions, at round 5, on deadlock, or when the user stops it.
+The meeting can stop when both sides converge at **Confidence >= 90 AND
+Score >= 9.0 AND matching conclusions**, at round 5, on deadlock, or when the
+user stops it.
+
+## Score Rubric
+
+Score each dimension 0–10, or `N/A` if irrelevant to the artifact under review.
+Final `Score` = arithmetic mean of non-N/A dimensions.
+
+- **Correctness** — logic, edge cases, spec conformance.
+- **Safety** — secrets, permissions, injection, external-write risk.
+- **Verification** — tests exist, reproducible, verification path is clear.
+- **Design Fit** — architectural consistency, scope/YAGNI, dependency hygiene.
+- **Clarity** — readability, naming, documentation; a fresh reader understands in 5 minutes.
+- **Reversibility** — rollback path, blast radius, irreversibility risk.
+
+`Score` and `Confidence` are independent:
+
+- `Score` = quality of the artifact under review.
+- `Confidence` = your own conviction in the score you just gave.
+
+`Score 9.0 + Confidence 60` means "looks good but I haven't covered everything" —
+termination condition is not met. `Score 6.0 + Confidence 95` means "definitely
+not ready" — termination condition is not met either. Both numbers must clear
+the bar independently.
+
+Projects may append extra dimensions (SDK compliance, performance, API
+compatibility, cost, etc.) directly under the table. Extras participate in the
+mean with equal weight unless the project specifies its own weighting.
 
 ## Safety
 

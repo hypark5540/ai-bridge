@@ -194,7 +194,7 @@ export AI_PRIMARY_CMD="<your-primary-ai-cli>"        # trusted local config only
 - **공유 메시지박스**: 두 에이전트는 같은 파일에 append-only 방식으로 메시지를 남긴다.
 - **명시적 컨텍스트**: 매 메시지는 Topic, Context refs, 본문, 요청을 포함한다.
 - **실행과 검토 분리**: 토론 중에는 텍스트만 주고받고, 합의 이후에만 코드 변경/테스트를 실행한다.
-- **사용자 최종 결정**: 5회 pingpong 안에 양쪽 Confidence 90 이상 + 결론 충족에 도달하지 못하면 사용자가 결정한다.
+- **사용자 최종 결정**: 5회 pingpong 안에 Claude·Codex **양쪽 모두** Confidence ≥ 90 + Score ≥ 9.0 + 결론 일치에 도달하지 못하면 사용자가 결정한다.
 - **비밀정보 금지**: 토큰, 비밀번호, 개인식별정보, 실제 민감 payload는 bridge에 쓰지 않는다.
 - **좁은 변경**: 합의된 파일/범위 밖은 건드리지 않는다.
 - **빠른 합의 ≠ 정답**: 두 AI가 1~2라운드에 의견 일치를 봐도 같은 잘못된 가정 위에서 수렴했을 수 있다. 합의 후에도 사용자가 핵심 가정을 검증한다.
@@ -243,7 +243,7 @@ chmod 0600 ~/ai-bridge.md
 - 사용자가 "bridge 확인" 트리거를 입력하면 → 마지막 상대방 항목을 읽고, 기존 findings와 상대 findings를 reconcile한 뒤 다음 round를 열지 종료조건을 충족했는지 명시한다.
 - 기본 리뷰는 one-shot이 아니다. 상대 리뷰가 도착하면 요청자 쪽으로 돌아와 합의/반박/재요청이 한 번 더 일어나야 한다.
 - 기본 리뷰는 병렬 독립 리뷰도 아니다. 주 AI가 sequential coordinator이며, 상대 결과를 회수해 합치기 전에는 사용자에게 최종 결론을 따로 내지 않는다.
-- 종료조건은 Claude와 Codex가 각각 Confidence 90 이상이고 Conclusion이 충족/일치하는 경우다. 아니면 최대 round 5까지 pingpong하고, 그 뒤에는 `USER DECISION NEEDED`로 사용자 결정을 요청한다.
+- 종료조건은 Claude와 Codex가 **각각 Confidence ≥ 90 AND Score ≥ 9.0 AND Conclusion 일치**일 때다. 아니면 최대 round 5까지 pingpong하고, 그 뒤에는 `USER DECISION NEEDED`로 사용자 결정을 요청한다.
 
 트리거 워딩은 자유롭게 정한다. 예시:
 - `"방금내용 [상대 AI]한테 전달 및 리뷰 요청"`
@@ -255,7 +255,7 @@ chmod 0600 ~/ai-bridge.md
 - bridge 파일 권한: core script가 신규 파일을 자동으로 `0600`으로 생성한다. 기존 파일이 다른 권한이면 경고 + 자동 chmod 시도. 같은 머신의 다른 사용자/프로세스가 평문으로 읽을 수 있다는 점을 기본 가정으로 둔다.
 - bridge 파일 위치는 git 저장소 밖에 두거나 반드시 `.gitignore`에 포함한다. commit 전 `grep`으로 키/이메일/도메인 등 민감 패턴이 섞이지 않았는지 한 번 더 확인한다.
 - 한 항목이 500줄을 넘으면 별도 파일에 상세를 두고 bridge에는 링크와 요약만 남긴다.
-- 같은 토픽이 round 5까지 왕복해도 양쪽 Confidence 90 이상 + 결론 충족에 도달하지 못하면 중단하고 사용자 결정을 요청한다.
+- 같은 토픽이 round 5까지 왕복해도 양쪽 Confidence ≥ 90 + Score ≥ 9.0 + 결론 일치에 도달하지 못하면 중단하고 사용자 결정을 요청한다.
 - bridge 파일의 상단 운영 규칙은 임의 수정하지 않는다.
 - **`AI_PRIMARY_CMD` / `AI_SECONDARY_CMD` 환경변수는 trusted local config로만 다룬다.** AI 출력, bridge 내용, `tmux capture-pane` 결과를 절대 이 값으로 만들지 말 것 — shell injection 위험.
 
@@ -308,7 +308,7 @@ flowchart TD
     A[사용자: 회의 모드 시작] --> B[Agent 1: 입장/근거/Confidence 제시]
     B --> C[Agent 2: 동의/이견/수정안 제시]
     C --> D{합의 조건 충족?}
-    D -->|Claude+Codex Confidence >= 90 및 결론 충족| E[회의 종료: 실행 범위 확정]
+    D -->|Claude·Codex 양쪽 Confidence>=90 AND Score>=9.0 AND 결론 일치| E[회의 종료: 실행 범위 확정]
     D -->|불일치, 라운드 남음| B
     D -->|round 5 도달 또는 결정 필요| F[USER DECISION NEEDED]
     E --> G[합의된 파일/명령만 실행]
@@ -317,7 +317,18 @@ flowchart TD
 회의 응답 끝에는 항상 다음 형식을 붙인다.
 
 ```markdown
+## Score
+| Dimension     | Score        | Note |
+|---------------|--------------|------|
+| Correctness   | x/10 or N/A  |      |
+| Safety        | x/10 or N/A  |      |
+| Verification  | x/10 or N/A  |      |
+| Design Fit    | x/10 or N/A  |      |
+| Clarity       | x/10 or N/A  |      |
+| Reversibility | x/10 or N/A  |      |
+
 ---
+**Score:** <N/A 제외 평균, 0-10>
 **Confidence:** <0-100>
 **Conclusion:** <한 줄 결론>
 ```
@@ -333,6 +344,32 @@ flowchart TD
 세 가지 모두 충실하면 80~100, 두 가지면 60~80, 한 가지면 40~60, 전혀 안 했으면 0~40 정도로 보수적으로 적는다.
 
 **두 AI의 Confidence가 모두 높아도 사실이 보장되는 것은 아니다.** Confidence는 검토 충실도 신호일 뿐이며, 외부 시스템 변경 전에는 사용자가 최종 범위와 부작용을 직접 확인한다.
+
+### Score 기준 (6차원 루브릭)
+
+검토 대상의 *품질*을 6개 차원에서 0–10 사이로 매긴다. 해당 안 되는 차원은 `N/A`로 둔다.
+최종 `Score`는 `N/A`를 제외한 차원들의 산술 평균(0–10).
+
+- **Correctness** — 동작·논리 정확성, 엣지 케이스, 명세 부합.
+- **Safety** — 시크릿/권한/주입, 외부 쓰기·비가역 액션 위험.
+- **Verification** — 테스트 존재, 재현 가능성, 검증 경로 명확성.
+- **Design Fit** — 아키텍처 일관성, scope/YAGNI, 의존성 위생.
+- **Clarity** — 가독성, 명명, 문서; 다음 사람이 5분 안에 이해 가능한가.
+- **Reversibility** — 롤백 경로, blast radius, 비가역 액션 여부.
+
+`Score`와 `Confidence`는 서로 독립적이다.
+
+- `Score` = 검토 대상의 품질
+- `Confidence` = 내가 매긴 그 점수에 대한 내 자신감
+
+예) `Score 9.0 + Confidence 60` = "좋아 보이지만 내가 살펴보지 못한 영역이 있음" → 종료 조건 미충족.
+예) `Score 6.0 + Confidence 95` = "확실히 부족함" → 종료 조건 미충족.
+
+종료 조건은 양쪽 모두 **Confidence ≥ 90 AND Score ≥ 9.0 AND Conclusion 일치**일 때다.
+이 기준을 한 번도 충족 못 한 채 round 5에 도달하면 `USER DECISION NEEDED`로 사용자 결정을 요청한다.
+
+프로젝트별로 추가 차원이 필요하면(예: SDK 준수, 성능, API 호환성, 비용) 표 아래에 plugin 차원을
+덧붙인다. 별도 가중치 합의가 없으면 평균에 동일 가중치로 포함된다.
 
 즉시 중단이 필요하면 다음 문구를 쓴다.
 
@@ -641,7 +678,7 @@ APPROVE WRITE target=<id> scope=<섹션 목록>
 - 한 에이전트가 도구 제약으로 막히면 다른 에이전트가 실행자가 될 수 있다 — 단 사용자가 한 줄 승인한 뒤에만.
 - 보안 판단은 "가능한가"보다 "로그/히스토리/공유 파일에 남는가"를 먼저 본다.
 - 최종 실행자는 합의 범위와 실제 변경 범위를 마지막에 대조한다.
-- Confidence가 높다고 검증을 생략하지 않는다. 외부 시스템 변경 전에는 사용자가 직접 본다.
+- Confidence·Score가 높다고 검증을 생략하지 않는다. 외부 시스템 변경 전에는 사용자가 직접 본다.
 
 ---
 
