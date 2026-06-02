@@ -212,7 +212,7 @@ norm_path() {
 
 # 검토자(SECONDARY)가 YOLO/bypass면 세션 신규/재사용 무관하게, 명령 전송 전에 먼저 경고. (가시성 우선)
 if [[ -n "$SECONDARY_CMD" ]] && is_yolo_cmd "$SECONDARY_CMD"; then
-    echo "  ${BOLD}${RED}⚠️  검토자(tmux) YOLO/bypass 모드 — 승인 prompt 없이 명령 실행. 신뢰 환경에서만 사용.${RESET}"
+    echo "  ${BOLD}${RED}⚠️  검토자(tmux) 명령 설정이 YOLO/bypass — 승인 prompt 없이 실행. 신뢰 환경에서만 사용.${RESET}"
 fi
 
 if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
