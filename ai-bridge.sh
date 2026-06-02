@@ -112,8 +112,9 @@ info()   { echo "    ${DIM}$1${RESET}"; }
 # YOLO/bypass 감지 — codex(--dangerously-bypass.../danger-full-access/-a never) +
 # claude(--dangerously-skip-permissions/bypassPermissions). trusted local config 문자열 전제.
 is_yolo_cmd() {
-    case "$1" in
-        *"--dangerously-bypass-approvals-and-sandbox"*|*"danger-full-access"*|*"-a never"* \
+    # 공백 패딩 후 검사 — `-a never`를 토큰 경계로 좁혀 `-a neverland` 등 오탐 방지.
+    case " $1 " in
+        *"--dangerously-bypass-approvals-and-sandbox"*|*"danger-full-access"*|*" -a never "* \
         |*"--dangerously-skip-permissions"*|*"bypassPermissions"*) return 0 ;;
         *) return 1 ;;
     esac
@@ -209,6 +210,11 @@ norm_path() {
     fi
 }
 
+# 검토자(SECONDARY)가 YOLO/bypass면 세션 신규/재사용 무관하게, 명령 전송 전에 먼저 경고. (가시성 우선)
+if [[ -n "$SECONDARY_CMD" ]] && is_yolo_cmd "$SECONDARY_CMD"; then
+    echo "  ${BOLD}${RED}⚠️  검토자(tmux) YOLO/bypass 모드 — 승인 prompt 없이 명령 실행. 신뢰 환경에서만 사용.${RESET}"
+fi
+
 if tmux has-session -t "$TMUX_SESSION" 2>/dev/null; then
     pane_cmd=$(tmux list-panes -t "$TMUX_SESSION" -F "#{pane_current_command}" 2>/dev/null | head -1)
     pane_cwd=$(tmux list-panes -t "$TMUX_SESSION" -F "#{pane_current_path}" 2>/dev/null | head -1)
@@ -230,9 +236,6 @@ else
     if [[ -n "$SECONDARY_CMD" ]]; then
         tmux send-keys -t "$TMUX_SESSION" "$SECONDARY_CMD" Enter
         ok "tmux 세션 생성 + '$SECONDARY_CMD' 시작 명령 전송"
-        if is_yolo_cmd "$SECONDARY_CMD"; then
-            warn "${RED}검토자(tmux)가 YOLO/bypass 모드 — 승인 prompt 없이 명령 실행. 신뢰 환경에서만 사용.${RESET}"
-        fi
         info "attach가 live state catch-up (sleep 불필요)"
     else
         ok "tmux 세션 생성 (AI_SECONDARY_CMD 미설정 — attach 후 직접 실행)"
@@ -311,7 +314,9 @@ echo ""
 
 if [[ -n "$PRIMARY_CMD" ]]; then
     # YOLO/bypass 모드 감지 — 사용자가 매 실행마다 인지하도록 명시 경고.
-    # PRIMARY_CMD는 trusted local config 문자열(이미 control-char 검증됨)이라 substring 검사 안전.
+    # is_yolo_cmd()는 codex(--dangerously-bypass.../danger-full-access/-a never) + claude
+    # (--dangerously-skip-permissions/bypassPermissions)를 모두 감지. PRIMARY/SECONDARY 공용.
+    # PRIMARY_CMD는 trusted local config(control-char 검증 완료)라 substring 검사 안전.
     if is_yolo_cmd "$PRIMARY_CMD"; then
         echo ""
         echo "  ${BOLD}${RED}⚠️  YOLO / bypass 모드${RESET}"
