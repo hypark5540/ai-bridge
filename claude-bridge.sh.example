@@ -8,7 +8,7 @@ set -euo pipefail
 # `--version` / `-V` 는 core에 위임해야 정확하므로 여기서 즉시 분기 (side-effect 차단).
 _self="${BASH_SOURCE[0]##*/}"
 _sub="${1:-}"
-if [[ "$_self" == *.example ]] && [[ "$_sub" != "list" && "$_sub" != "-l" && "$_sub" != "--version" && "$_sub" != "-V" ]]; then
+if [[ "$_self" == *.example ]] && [[ "$_sub" != "list" && "$_sub" != "-l" && "$_sub" != "--version" && "$_sub" != "-V" && "$_sub" != "doctor" && "$_sub" != "--selftest" ]]; then
     echo "⚠️  '$_self' is a template — not meant to be run directly for real pair setup." >&2
     echo "    Install:  cp $_self ${_self%.example} && chmod +x ${_self%.example}" >&2
     echo "    Edit AI_PRIMARY_CMD / AI_SECONDARY_CMD inside the copy, then run ./${_self%.example}" >&2
@@ -31,6 +31,7 @@ unset _self _sub
 #   AI_PAIR_TAG=agents ./claude-bridge.sh               # 가독성 위해 명명 tag
 #   AI_BRIDGE_WORKDIR=~/your-project ./claude-bridge.sh # primary/mutex cwd 지정 (기본: 실행한 cwd)
 #   ./claude-bridge.sh list                             # 활성 pair 조회
+#   ./claude-bridge.sh doctor [session]                 # codex 입력(Enter 제출) 자가진단 (옵트인, 자동 X)
 #
 # 역방향(codex 주 / claude mutex): codex-bridge.sh 참고.
 #
@@ -81,6 +82,62 @@ if [[ "${1:-}" == "list" || "${1:-}" == "-l" ]]; then
     # shellcheck disable=SC2010
     ls -la "$PAIRS_DIR/" 2>/dev/null | grep "bridge-" || echo "  (none)"
     exit 0
+fi
+
+# ── doctor 모드: mutex(codex) 입력 자가진단 (옵트인) ─────────
+# 일부 codex pre-release는 본문+Enter를 paste로 인식해 Enter 제출을 흡수한다(텍스트는 들어가는데 제출 안 됨).
+# 이건 "필수 startup gate"가 아니라 사용자가 이상할 때만 돌리는 진단 도구 —
+# 자동 버전업/차단 없음. 감지(버전 경고) + 실제 1줄 전송 제출 검증(PASS/FAIL)만.
+#   Usage: ./claude-bridge.sh doctor [tmux_session]   (세션 생략 시 자동 해석)
+if [[ "${1:-}" == "doctor" || "${1:-}" == "--selftest" ]]; then
+    echo "── ai-bridge doctor (codex 입력 자가진단) ──"
+
+    # 1) codex(=mutex) 버전 감지 — 자동 업글 금지, pre-release면 경고만
+    if command -v codex >/dev/null 2>&1; then
+        _cver="$(codex --version 2>&1 | head -1 || true)"
+        echo "codex   : $_cver"
+        if printf '%s' "$_cver" | grep -qiE 'alpha|beta|rc|-dev'; then
+            echo "          ⚠ pre-release — 입력(Enter/paste) 처리가 바뀔 수 있음. 문제 지속 시 안정 버전 고정 권장."
+        fi
+    else
+        echo "codex   : (PATH에서 못 찾음)"
+    fi
+
+    # 2) 테스트 세션 해석: 인자 > \$AI_TMUX_SESSION > 첫 codex-* > legacy codex
+    _target="${2:-${AI_TMUX_SESSION:-}}"
+    if [[ -z "$_target" ]]; then
+        _target="$(tmux list-sessions -F '#{session_name}' 2>/dev/null | grep -m1 '^codex-' || true)"
+        if [[ -z "$_target" ]] && tmux has-session -t codex 2>/dev/null; then _target="codex"; fi
+    fi
+    if [[ -z "$_target" ]] || ! tmux has-session -t "$_target" 2>/dev/null; then
+        echo "session : (활성 codex 세션 없음) — 전송 테스트 건너뜀."
+        echo "          먼저 ./claude-bridge.sh 로 pair를 띄운 뒤 다시 실행하세요."
+        exit 0
+    fi
+    echo "session : $_target  (⚠ 이 세션에 진단용 마커 1줄을 실제 전송합니다 — 무해)"
+
+    # 3) 검증된 전송 패턴(본문/Enter 분리 + delay)으로 마커 제출 → capture로 제출 확인
+    _marker="AI_BRIDGE_SELFTEST_$$"
+    tmux send-keys -t "$_target" -l "$_marker"
+    sleep 0.4
+    tmux send-keys -t "$_target" Enter
+    sleep 1.2
+    # capture를 변수로 한 번만 떠서 bash 패턴 매칭 (pipefail+SIGPIPE 회피 위해 pipe-grep 지양)
+    _screen="$(tmux capture-pane -t "$_target" -p 2>/dev/null || true)"
+    _last_prompt="$(printf '%s\n' "$_screen" | grep -E '^›' | tail -n1 || true)"
+    if [[ "$_screen" != *"$_marker"* ]]; then
+        echo "RESULT  : ⚠ UNKNOWN — 마커를 화면에서 못 찾음(스크롤/렌더링 차이). 수동 확인 필요."
+        exit 2
+    elif [[ "$_last_prompt" == *"$_marker"* ]]; then
+        # 마커가 마지막 › 입력줄(composer)에 잔류 = 제출 안 됨
+        tmux send-keys -t "$_target" C-u   # 세션 더럽히지 않도록 composer 비움
+        echo "RESULT  : ❌ FAIL — 텍스트는 전달됐으나 Enter 제출 안 됨(composer 잔류, 비움 처리)."
+        echo "          전송 로직이 '본문→sleep→별도 Enter→capture 재전송'을 쓰는지 확인. codex 안정 버전 고정 검토."
+        exit 1
+    else
+        echo "RESULT  : ✅ PASS — 마커 정상 제출됨(Enter 작동)."
+        exit 0
+    fi
 fi
 
 # ── --version: core에 즉시 위임 (pair setup side-effect 차단) ──
